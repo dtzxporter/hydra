@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use crate::Pid;
 
 /// A reference to a process monitor.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Monitor {
     pid: Pid,
     reference: u64,
