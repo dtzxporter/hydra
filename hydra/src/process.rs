@@ -17,7 +17,9 @@ use crate::PROCESS_REGISTRY;
 
 /// A light weight task that can send and receive messages.
 pub struct Process {
+    /// The unique id of this process.
     pub(crate) pid: Pid,
+    /// The inbox for this process.
     pub(crate) channel: Receiver<MessageState>,
 }
 
