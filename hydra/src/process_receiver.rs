@@ -8,9 +8,13 @@ use crate::PROCESS_REGISTRY;
 
 /// A peakable view of a process's mailbox.
 pub struct ProcessReceiver {
+    /// The process id of the receivers inbox.
     pid: Pid,
+    /// The return inbox for kept messages.
     current_send: Option<Sender<MessageState>>,
+    /// The inbox temporarily used for sending messages.
     peak_send: Sender<MessageState>,
+    /// The inbox temporarily used for receiving messages.
     peak_receiver: Option<Receiver<MessageState>>,
 }
 
