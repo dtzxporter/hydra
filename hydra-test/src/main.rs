@@ -7,6 +7,7 @@ use hydra::SystemMessage;
 
 enum MyMessage {
     Hello(String),
+    Bye(Vec<u8>),
 }
 
 #[tokio::main]
@@ -20,7 +21,7 @@ async fn main() {
         println!("Process: {:?} running...", us);
 
         // Links this process to the parent, a (death pact).
-        Process::spawn(async move {
+        Process::spawn_link(async move {
             panic!("We're going down: {:?}!", Process::current());
         });
 
@@ -36,14 +37,21 @@ async fn main() {
                 Message::User(MyMessage::Hello(string)) => {
                     println!("Got message: {:?}", string);
                 }
+                Message::User(MyMessage::Bye(bye)) => {
+                    println!("Got bye: {:?}", bye);
+                }
                 Message::System(SystemMessage::Exit(from, exit_reason)) => {
                     println!("Got exit signal from: {:?} reason: {:?}", from, exit_reason);
+
+                    Process::send(us, MyMessage::Bye("wins".as_bytes().to_vec()));
                 }
                 Message::System(SystemMessage::ProcessDown(from, monitor, exit_reason)) => {
                     println!(
                         "Got process down from: {:?} monitor: {:?} reason: {:?}",
                         from, monitor, exit_reason
                     );
+
+                    Process::send(us, MyMessage::Bye("wins".as_bytes().to_vec()));
                 }
             }
         }

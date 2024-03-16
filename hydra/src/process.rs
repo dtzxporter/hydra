@@ -116,7 +116,7 @@ impl Process {
         T: Future<Output = ()> + Send + 'static,
         T::Output: Send + 'static,
     {
-        match spawn_internal(function, false, false) {
+        match spawn_internal(function, true, false) {
             SpawnResult::Pid(pid) => pid,
             SpawnResult::PidMonitor(_, _) => unreachable!(),
         }
