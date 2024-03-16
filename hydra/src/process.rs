@@ -6,6 +6,7 @@ use std::sync::atomic::Ordering;
 use flume::Receiver;
 
 use crate::CatchUnwind;
+use crate::ExitReason;
 use crate::Message;
 use crate::MessageState;
 use crate::Monitor;
@@ -13,6 +14,7 @@ use crate::Pid;
 use crate::ProcessFlags;
 use crate::ProcessReceiver;
 use crate::ProcessRegistration;
+use crate::SystemMessage;
 use crate::PID_ID_MAXIMUM;
 use crate::PROCESS_REGISTRY;
 
@@ -270,6 +272,64 @@ impl Process {
             .processes
             .get_mut(&pid.id())
             .map(|x| x.links.remove(&current));
+    }
+
+    /// Starts monitoring the given [Pid] from the calling process. If the [Pid] is already dead a message is sent immediately.
+    pub fn monitor<T: Into<Pid>>(pid: T) -> Monitor {
+        let current = Self::current();
+        let pid = pid.into();
+
+        if pid == current {
+            panic!("Can not monitor yourself!");
+        }
+
+        if !pid.is_local() {
+            unimplemented!("Remote process monitor unsupported!");
+        }
+
+        let mut registry = PROCESS_REGISTRY.write().unwrap();
+
+        let next_monitor_id = registry
+            .processes
+            .get_mut(&current.id())
+            .map(|process| process.next_monitor())
+            .unwrap();
+
+        if let Some(process) = registry.processes.get_mut(&pid.id()) {
+            process.monitors.insert((current, next_monitor_id));
+
+            registry
+                .processes
+                .get_mut(&current.id())
+                .map(|process| process.installed_monitors.insert(next_monitor_id, pid));
+        } else {
+            registry
+                .processes
+                .get(&current.id())
+                .map(|process| process.channel.clone())
+                .unwrap()
+                .send(MessageState::System(SystemMessage::ProcessDown(
+                    pid,
+                    Monitor::new(current, next_monitor_id),
+                    ExitReason::Custom(String::from("noproc")),
+                )))
+                .unwrap();
+        }
+
+        Monitor::new(current, next_monitor_id)
+    }
+
+    /// Demonitors the monitor identifier by the given [Monitor] reference.
+    pub fn demonitor(monitor: Monitor) {
+        if !monitor.pid().is_local() {
+            unimplemented!("Remote process monitor unsupported!");
+        }
+
+        let mut registry = PROCESS_REGISTRY.write().unwrap();
+
+        if let Some(process) = registry.processes.get_mut(&monitor.pid().id()) {
+            process.installed_monitors.remove(&monitor.reference());
+        }
     }
 
     /// Returns the current process flags.

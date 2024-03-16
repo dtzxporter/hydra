@@ -13,6 +13,16 @@ impl Monitor {
     pub(crate) const fn new(pid: Pid, reference: u64) -> Self {
         Self { pid, reference }
     }
+
+    /// Returns the process id that this monitor is installed for.
+    pub(crate) const fn pid(&self) -> Pid {
+        self.pid
+    }
+
+    /// Returns the reference id for this monitor.
+    pub(crate) const fn reference(&self) -> u64 {
+        self.reference
+    }
 }
 
 impl Debug for Monitor {

@@ -20,7 +20,7 @@ async fn main() {
         println!("Process: {:?} running...", us);
 
         // Links this process to the parent, a (death pact).
-        let (_, _monitor) = Process::spawn_monitor(async move {
+        Process::spawn(async move {
             panic!("We're going down: {:?}!", Process::current());
         });
 
