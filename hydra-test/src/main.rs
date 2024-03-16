@@ -21,8 +21,7 @@ async fn main() {
 
         // Links this process to the parent, a (death pact).
         Process::spawn_link(async move {
-            // Whoops, we're going to panic.
-            panic!("fuck we died.");
+            panic!("We're going down: {:?}!", Process::current());
         });
 
         // Send it.

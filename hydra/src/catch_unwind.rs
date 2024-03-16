@@ -2,10 +2,14 @@ use std::future::Future;
 use std::panic::catch_unwind;
 use std::panic::AssertUnwindSafe;
 use std::panic::UnwindSafe;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
 
 use pin_project_lite::pin_project;
 
 pin_project! {
+    /// A future that will catch panics and unwind them.
     pub struct CatchUnwind<Fut>
     where
         Fut: Future,
@@ -19,6 +23,7 @@ impl<Fut> CatchUnwind<Fut>
 where
     Fut: Future + UnwindSafe,
 {
+    /// Constructs a new [CatchUnwind] for the given future.
     pub fn new(future: Fut) -> Self {
         Self { future }
     }
@@ -30,10 +35,7 @@ where
 {
     type Output = Result<Fut::Output, String>;
 
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let f = self.project().future;
 
         catch_unwind(AssertUnwindSafe(|| f.poll(cx)))
