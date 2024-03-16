@@ -1,4 +1,5 @@
 mod catch_unwind;
+mod dest;
 mod exit_reason;
 mod message;
 mod message_state;
@@ -14,6 +15,7 @@ mod process_registration;
 mod process_registry;
 mod system_message;
 
+pub use dest::*;
 pub use exit_reason::*;
 pub use message::*;
 pub use monitor::*;

@@ -6,6 +6,7 @@ use std::sync::atomic::Ordering;
 use flume::Receiver;
 
 use crate::CatchUnwind;
+use crate::Dest;
 use crate::ExitReason;
 use crate::Message;
 use crate::MessageState;
@@ -55,14 +56,32 @@ impl Process {
     }
 
     /// Sends a single message to `dest` with the given `message`.
-    pub fn send<M: Send + 'static>(dest: Pid, message: M) {
-        if dest.is_local() {
-            PROCESS_REGISTRY
-                .read()
-                .unwrap()
-                .processes
-                .get(&dest.id())
-                .map(|process| process.channel.send(Message::User(message).into()));
+    pub fn send<D: Into<Dest>, M: Send + 'static>(dest: D, message: M) {
+        let dest = dest.into();
+
+        match dest {
+            Dest::Pid(pid) => {
+                if pid.is_local() {
+                    PROCESS_REGISTRY
+                        .read()
+                        .unwrap()
+                        .processes
+                        .get(&pid.id())
+                        .map(|process| process.channel.send(Message::User(message).into()));
+                }
+            }
+            Dest::Named(name) => {
+                let registry = PROCESS_REGISTRY.read().unwrap();
+
+                registry
+                    .named_processes
+                    .get(name.as_ref())
+                    .and_then(|id| registry.processes.get(id))
+                    .map(|process| process.channel.send(Message::User(message).into()));
+            }
+            Dest::RemoteNamed(_, _) => {
+                unimplemented!("Send remote named not supported!")
+            }
         }
     }
 
