@@ -1,0 +1,19 @@
+{
+    "editor.detectIndentation": false,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "files.eol": "\n",
+    "[rust]": {
+        "editor.formatOnSave": true
+    },
+    "[toml]": {
+        "editor.formatOnSave": true
+    },
+    "rust-analyzer.server.extraEnv": {
+        "CHALK_OVERFLOW_DEPTH": 500
+    },
+    "rust-analyzer.diagnostics.disabled": [
+        "macro-error"
+    ],
+    "rust-analyzer.procMacro.enable": true,
+}

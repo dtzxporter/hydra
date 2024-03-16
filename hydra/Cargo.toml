@@ -1,0 +1,11 @@
+[package]
+name = "hydra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flume.workspace = true
+tokio.workspace = true
+once_cell.workspace = true
+bitflags.workspace = true
+pin-project-lite.workspace = true
