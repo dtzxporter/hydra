@@ -10,12 +10,16 @@ use crate::ProcessFlags;
 use crate::ProcessRegistration;
 use crate::SystemMessage;
 
+/// The global process registry.
 pub struct ProcessRegistry {
+    /// A collection of process id -> process registration.
     pub processes: HashMap<u64, ProcessRegistration>,
+    /// A collection of registered named processes.
     pub named_processes: HashMap<String, u64>,
 }
 
 impl ProcessRegistry {
+    /// Constructs a new [ProcessRegistry].
     pub fn new() -> Self {
         Self {
             processes: HashMap::new(),
