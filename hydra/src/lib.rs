@@ -2,6 +2,10 @@ mod catch_unwind;
 mod exit_reason;
 mod message;
 mod message_state;
+mod monitor;
+mod node;
+//mod node_local;
+//mod node_registry;
 mod pid;
 mod process;
 mod process_flags;
@@ -12,6 +16,8 @@ mod system_message;
 
 pub use exit_reason::*;
 pub use message::*;
+pub use monitor::*;
+pub use node::*;
 pub use pid::*;
 pub use process::*;
 pub use process_flags::*;
@@ -20,5 +26,7 @@ pub use system_message::*;
 
 pub(crate) use catch_unwind::*;
 pub(crate) use message_state::*;
+//pub(crate) use node_local::*;
+//pub(crate) use node_registry::*;
 pub(crate) use process_registration::*;
 pub(crate) use process_registry::*;

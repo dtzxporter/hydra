@@ -20,9 +20,11 @@ async fn main() {
         println!("Process: {:?} running...", us);
 
         // Links this process to the parent, a (death pact).
-        Process::spawn_link(async move {
+        let (_, _monitor) = Process::spawn_monitor(async move {
             panic!("We're going down: {:?}!", Process::current());
         });
+
+        // Remove the monitor before we crash so we get nothing.
 
         // Send it.
         Process::send(us, MyMessage::Hello("wins".into()));
@@ -36,6 +38,12 @@ async fn main() {
                 }
                 Message::System(SystemMessage::Exit(from, exit_reason)) => {
                     println!("Got exit signal from: {:?} reason: {:?}", from, exit_reason);
+                }
+                Message::System(SystemMessage::ProcessDown(from, monitor, exit_reason)) => {
+                    println!(
+                        "Got process down from: {:?} monitor: {:?} reason: {:?}",
+                        from, monitor, exit_reason
+                    );
                 }
             }
         }

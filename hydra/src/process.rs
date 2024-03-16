@@ -8,6 +8,7 @@ use flume::Receiver;
 use crate::CatchUnwind;
 use crate::Message;
 use crate::MessageState;
+use crate::Monitor;
 use crate::Pid;
 use crate::ProcessFlags;
 use crate::ProcessReceiver;
@@ -101,7 +102,10 @@ impl Process {
         T: Future<Output = ()> + Send + 'static,
         T::Output: Send + 'static,
     {
-        spawn_internal(function, false, false)
+        match spawn_internal(function, false, false) {
+            SpawnResult::Pid(pid) => pid,
+            SpawnResult::PidMonitor(_, _) => unreachable!(),
+        }
     }
 
     /// Spawns the given `function` as a process, creates a link between the calling process, and returns the new [Pid].
@@ -110,16 +114,22 @@ impl Process {
         T: Future<Output = ()> + Send + 'static,
         T::Output: Send + 'static,
     {
-        spawn_internal(function, true, false)
+        match spawn_internal(function, false, false) {
+            SpawnResult::Pid(pid) => pid,
+            SpawnResult::PidMonitor(_, _) => unreachable!(),
+        }
     }
 
     /// Spawns the given `function` as a process, creates a monitor for the calling process, and returns the new [Pid].
-    pub fn spawn_monitor<T>(function: T) -> Pid
+    pub fn spawn_monitor<T>(function: T) -> (Pid, Monitor)
     where
         T: Future<Output = ()> + Send + 'static,
         T::Output: Send + 'static,
     {
-        spawn_internal(function, false, true)
+        match spawn_internal(function, false, true) {
+            SpawnResult::Pid(_) => unreachable!(),
+            SpawnResult::PidMonitor(pid, monitor) => (pid, monitor),
+        }
     }
 
     /// Returns true if the given [Pid] is alive on the local node.
@@ -167,6 +177,21 @@ impl Process {
         }
 
         registry.named_processes.insert(name, pid.id());
+    }
+
+    /// Removes the registered `name`, associated with a [Pid].
+    pub fn unregister<S: Into<String>>(name: S) {
+        let name = name.into();
+
+        let mut registry = PROCESS_REGISTRY.write().unwrap();
+
+        if let Some(named_pid) = registry.named_processes.remove(&name) {
+            if let Some(process) = registry.processes.get_mut(&named_pid) {
+                process.name = None;
+            }
+        } else {
+            panic!("Name {:?} was not registered!", name);
+        }
     }
 
     /// Returns a [Vec] of registered process names.
@@ -288,11 +313,38 @@ impl Drop for Process {
 
             registry.exit_signal_linked_process(link, self.pid, process.exit_reason.clone());
         }
+
+        for (monitor, monitor_id) in process.monitors {
+            if !monitor.is_local() {
+                unimplemented!("Remote process monitor unsupported!");
+            }
+
+            registry.exit_signal_monitored_process(
+                monitor,
+                monitor_id,
+                self.pid,
+                process.exit_reason.clone(),
+            );
+        }
+
+        for (monitor_id, monitor) in process.installed_monitors {
+            if !monitor.is_local() {
+                unimplemented!("Remote process monitor unsupported!");
+            }
+
+            registry.uninstall_monitored_process(monitor, monitor_id, self.pid);
+        }
     }
 }
 
+/// Internal spawn result.
+enum SpawnResult {
+    Pid(Pid),
+    PidMonitor(Pid, Monitor),
+}
+
 /// Internal spawn utility.
-fn spawn_internal<T>(function: T, link: bool, monitor: bool) -> Pid
+fn spawn_internal<T>(function: T, link: bool, monitor: bool) -> SpawnResult
 where
     T: Future<Output = ()> + Send + 'static,
     T::Output: Send + 'static,
@@ -357,12 +409,24 @@ where
             .map(|process| process.links.insert(pid));
     }
 
+    let mut result = SpawnResult::Pid(pid);
+
     // If a monitor was requested insert it before closing the lock.
     if monitor {
-        unimplemented!()
+        let current = Process::current();
+        let next_monitor_id = registration.next_monitor();
+
+        registration.monitors.insert((current, next_monitor_id));
+
+        registry
+            .processes
+            .get_mut(&current.id())
+            .map(|process| process.installed_monitors.insert(next_monitor_id, pid));
+
+        result = SpawnResult::PidMonitor(pid, Monitor::new(current, next_monitor_id));
     }
 
     registry.processes.insert(next_id, registration);
 
-    pid
+    result
 }
