@@ -85,7 +85,7 @@ impl Process {
         }
     }
 
-    /// Receives a single message from the current processes mailbox.
+    /// Receives a single message that matches the given type from the current processes mailbox or panics.
     #[must_use]
     pub async fn receive<T: Send + 'static>() -> Message<T> {
         PROCESS
@@ -93,7 +93,14 @@ impl Process {
             .recv_async()
             .await
             .unwrap()
-            .into()
+            .try_into()
+            .unwrap()
+    }
+
+    /// Receives a single filtered message that matches the given type from the current processes mailbox.
+    #[must_use]
+    pub async fn filter_receive<T: Send + 'static>(&self) -> Message<T> {
+        Self::receiver().filter_receive().await
     }
 
     /// Creates a peakable view of the current processes mailbox which allows skipping values we don't want while maintaining order.

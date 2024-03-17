@@ -53,7 +53,8 @@ impl ProcessReceiver {
             .unwrap();
     }
 
-    /// Receives a single message from the current processes mailbox.
+    /// Receives a single message that matches the given type from the current processes mailbox or panics.
+    #[must_use]
     pub async fn receive<T: Send + 'static>(&self) -> Message<T> {
         self.peak_receiver
             .as_ref()
@@ -61,7 +62,27 @@ impl ProcessReceiver {
             .recv_async()
             .await
             .unwrap()
-            .into()
+            .try_into()
+            .unwrap()
+    }
+
+    /// Receives a single filtered message that matches the given type from the current processes mailbox.
+    #[must_use]
+    pub async fn filter_receive<T: Send + 'static>(&self) -> Message<T> {
+        loop {
+            let message = self
+                .peak_receiver
+                .as_ref()
+                .unwrap()
+                .recv_async()
+                .await
+                .unwrap();
+
+            match message.try_into() {
+                Ok(message) => return message,
+                Err(message) => self.current_send.as_ref().unwrap().send(message).unwrap(),
+            }
+        }
     }
 }
 

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::Message;
 use crate::SystemMessage;
 
@@ -11,17 +13,20 @@ pub enum MessageState {
     System(SystemMessage),
 }
 
-impl<T> From<MessageState> for Message<T>
+impl<T> TryFrom<MessageState> for Message<T>
 where
     T: Send + 'static,
 {
-    fn from(value: MessageState) -> Self {
+    type Error = MessageState;
+
+    fn try_from(value: MessageState) -> Result<Self, Self::Error> {
         match value {
             MessageState::SerializedUser(_serialized) => unimplemented!(),
-            MessageState::DeserializedUser(deserialized) => {
-                Message::User(*deserialized.downcast::<T>().unwrap())
-            }
-            MessageState::System(system) => Message::System(system),
+            MessageState::DeserializedUser(deserialized) => deserialized
+                .downcast::<T>()
+                .map(|x| Message::User(*x))
+                .map_err(MessageState::DeserializedUser),
+            MessageState::System(system) => Ok(Message::System(system)),
         }
     }
 }
@@ -40,6 +45,16 @@ where
         match value {
             Message::User(user) => Self::DeserializedUser(Box::new(user)),
             Message::System(system) => Self::System(system),
+        }
+    }
+}
+
+impl Debug for MessageState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MessageState::SerializedUser(_) => write!(f, "SerializedUser(..)"),
+            MessageState::DeserializedUser(_) => write!(f, "DeserializedUser(..)"),
+            MessageState::System(system) => write!(f, "System({:?})", system),
         }
     }
 }
