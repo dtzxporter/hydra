@@ -22,7 +22,13 @@ pub trait GenServer: Sized + Send + 'static {
 
     /// A method.
     #[allow(unused_variables)]
-    async fn handle_cast(&mut self, from: Pid, message: Self::Message) {}
+    async fn handle_cast(&mut self, from: Pid, message: Self::Message) {
+        println!(
+            "GenServer: {:?} received unhandled cast from {:?}",
+            Process::current(),
+            from
+        );
+    }
 }
 
 async fn start_internal<T: GenServer + Send + 'static>(
