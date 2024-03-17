@@ -1,13 +1,32 @@
 use std::time::Duration;
 
 use hydra::Message;
+use hydra::Pid;
 use hydra::Process;
 use hydra::ProcessFlags;
 use hydra::SystemMessage;
 
+use hydra_platform::GenServer;
+use hydra_platform::GenServerOptions;
+
 enum MyMessage {
     Hello(String),
     Bye(Vec<u8>),
+}
+
+struct MyServer;
+
+impl GenServer for MyServer {
+    type InitArg = ();
+    type Message = MyMessage;
+
+    async fn init(&mut self, _: Self::InitArg) {
+        //
+    }
+
+    async fn handle_cast(&mut self, from: Pid, message: Self::Message) {
+        //
+    }
 }
 
 #[tokio::main]
@@ -29,6 +48,8 @@ async fn main() {
 
         // Send it.
         Process::send(us, MyMessage::Hello("wins".into()));
+
+        MyServer.start_link((), GenServerOptions::new()).await;
 
         loop {
             let recv = Process::receive::<MyMessage>().await;

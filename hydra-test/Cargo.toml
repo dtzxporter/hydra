@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 hydra = { path = "../hydra" }
+hydra-platform = { path = "../hydra-platform" }
 
 tokio.workspace = true

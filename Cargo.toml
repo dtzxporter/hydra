@@ -1,5 +1,5 @@
 [workspace]
-members = ["hydra", "hydra-test"]
+members = ["hydra", "hydra-platform", "hydra-test"]
 resolver = "2"
 
 
