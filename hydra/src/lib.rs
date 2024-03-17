@@ -1,6 +1,7 @@
 mod catch_unwind;
 mod dest;
 mod exit_reason;
+mod frame;
 mod message;
 mod message_state;
 mod monitor;

@@ -8,5 +8,8 @@ flume = "0.11"
 once_cell = "1.19"
 bitflags = "2.4"
 pin-project-lite = "0.2"
+bincode = "2.0.0-rc.3"
+bytes = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 tokio = { version = "1.0", default-features = false, features = ["rt", "rt-multi-thread", "net", "sync", "time", "macros"] }
+tokio-util = { version = "0.7", default-features = false, features = ["codec"] }

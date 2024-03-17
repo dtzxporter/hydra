@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies]
 flume.workspace = true
+bytes.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
+bincode.workspace = true
 once_cell.workspace = true
 bitflags.workspace = true
 pin-project-lite.workspace = true
