@@ -29,8 +29,19 @@ pub trait GenServer: Sized + Send + 'static {
             from
         );
     }
+
+    /// A call.
+    #[allow(unused_variables)]
+    async fn handle_call(&mut self, from: Pid, message: Self::Message) -> Option<Self::Message> {
+        panic!(
+            "GenServer: {:?} received unhandled call from {:?}",
+            Process::current(),
+            from
+        );
+    }
 }
 
+/// Internal gen server start utility.
 async fn start_internal<T: GenServer + Send + 'static>(
     gen_server: T,
     init_arg: T::InitArg,

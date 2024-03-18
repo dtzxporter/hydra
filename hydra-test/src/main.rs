@@ -24,8 +24,13 @@ impl GenServer for MyServer {
         //
     }
 
-    async fn handle_cast(&mut self, from: Pid, message: Self::Message) {
+    async fn handle_cast(&mut self, _from: Pid, _message: Self::Message) {
         //
+    }
+
+    async fn handle_call(&mut self, _from: Pid, _message: Self::Message) -> Option<Self::Message> {
+        //
+        unimplemented!()
     }
 }
 
