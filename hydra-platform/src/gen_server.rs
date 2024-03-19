@@ -16,6 +16,10 @@ pub trait GenServer: Sized + Send + 'static {
 
     fn init(&mut self, init_arg: Self::InitArg) -> impl Future<Output = ()> + Send;
 
+    async fn start(self, init_arg: Self::InitArg, options: GenServerOptions) -> Pid {
+        start_internal(self, init_arg, options, false).await
+    }
+
     async fn start_link(self, init_arg: Self::InitArg, options: GenServerOptions) -> Pid {
         start_internal(self, init_arg, options, true).await
     }
