@@ -8,10 +8,14 @@ use hydra::SystemMessage;
 
 use hydra_platform::GenServer;
 use hydra_platform::GenServerOptions;
+use hydra_platform::Reply;
 
+#[derive(Debug)]
 enum MyMessage {
     Hello(String),
     Bye(Vec<u8>),
+    Call(i32),
+    Resp(i32),
 }
 
 struct MyServer;
@@ -24,13 +28,22 @@ impl GenServer for MyServer {
         //
     }
 
-    async fn handle_cast(&mut self, _from: Pid, _message: Self::Message) {
-        //
+    async fn handle_cast(&mut self, from: Pid, message: Self::Message) {
+        println!(
+            "My gen server got a cool message: from: {:?} {:?}",
+            from, message
+        );
     }
 
-    async fn handle_call(&mut self, _from: Pid, _message: Self::Message) -> Option<Self::Message> {
-        //
-        unimplemented!()
+    async fn handle_call(
+        &mut self,
+        _reply: Reply<Self::Message>,
+        message: Self::Message,
+    ) -> Option<Self::Message> {
+        match message {
+            MyMessage::Call(start) => Some(MyMessage::Resp(start * 5)),
+            _ => unimplemented!(),
+        }
     }
 }
 
@@ -54,7 +67,14 @@ async fn main() {
         // Send it.
         Process::send(us, MyMessage::Hello("wins".into()));
 
-        MyServer.start_link((), GenServerOptions::new()).await;
+        let pid = MyServer.start_link((), GenServerOptions::new()).await;
+
+        MyServer::cast(pid, MyMessage::Hello(String::from("yay")));
+
+        let start = std::time::Instant::now();
+        let _ = MyServer::call(pid, MyMessage::Call(20)).await;
+
+        println!("Got call result:   {:?}", start.elapsed() / 100);
 
         loop {
             let recv = Process::receive::<MyMessage>().await;
@@ -65,6 +85,9 @@ async fn main() {
                 }
                 Message::User(MyMessage::Bye(bye)) => {
                     println!("Got bye: {:?}", bye);
+                }
+                Message::User(_) => {
+                    unimplemented!()
                 }
                 Message::System(SystemMessage::Exit(from, exit_reason)) => {
                     println!("Got exit signal from: {:?} reason: {:?}", from, exit_reason);

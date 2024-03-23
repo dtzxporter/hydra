@@ -301,9 +301,13 @@ impl Process {
     }
 
     /// Starts monitoring the given [Pid] from the calling process. If the [Pid] is already dead a message is sent immediately.
-    pub fn monitor<T: Into<Pid>>(pid: T) -> Monitor {
+    pub fn monitor<T: Into<Dest>>(dest: T) -> Monitor {
         let current = Self::current();
-        let pid = pid.into();
+        let dest = dest.into();
+
+        let Dest::Pid(pid) = dest else {
+            unimplemented!("Dest monitor not supported!")
+        };
 
         if pid == current {
             panic!("Can not monitor yourself!");
