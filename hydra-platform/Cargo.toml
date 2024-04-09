@@ -7,3 +7,4 @@ edition = "2021"
 hydra = { path = "../hydra" }
 
 tokio.workspace = true
+serde.workspace = true

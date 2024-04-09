@@ -1,5 +1,8 @@
+use serde::Deserialize;
+use serde::Serialize;
+
 /// Represents the reason a process exits.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExitReason {
     /// Process exited due to normal reasons, function ended, or manually stopped.
     Normal,

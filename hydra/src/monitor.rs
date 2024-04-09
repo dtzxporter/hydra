@@ -1,9 +1,12 @@
 use std::fmt::Debug;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::Pid;
 
 /// A reference to a process monitor.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Monitor {
     pid: Pid,
     reference: u64,

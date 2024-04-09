@@ -1,3 +1,5 @@
+use serde::de::DeserializeOwned;
+
 use std::fmt::Debug;
 
 use crate::Message;
@@ -15,13 +17,23 @@ pub enum MessageState {
 
 impl<T> TryFrom<MessageState> for Message<T>
 where
-    T: Send + 'static,
+    T: DeserializeOwned + Send + 'static,
 {
     type Error = MessageState;
 
     fn try_from(value: MessageState) -> Result<Self, Self::Error> {
         match value {
-            MessageState::SerializedUser(_serialized) => unimplemented!(),
+            MessageState::SerializedUser(serialized) => {
+                #[cfg(feature = "json")]
+                {
+                    serde_json::from_slice(&serialized)
+                        .map(|x| Message::User(x))
+                        .map_err(|_| MessageState::SerializedUser(serialized))
+                }
+
+                #[cfg(not(any(feature = "json")))]
+                unimplemented!()
+            }
             MessageState::DeserializedUser(deserialized) => deserialized
                 .downcast::<T>()
                 .map(|x| Message::User(*x))

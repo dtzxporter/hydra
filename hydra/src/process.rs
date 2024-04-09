@@ -3,6 +3,8 @@ use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
+use serde::de::DeserializeOwned;
+
 use flume::Receiver;
 
 use crate::CatchUnwind;
@@ -87,7 +89,7 @@ impl Process {
 
     /// Receives a single message that matches the given type from the current processes mailbox or panics.
     #[must_use]
-    pub async fn receive<T: Send + 'static>() -> Message<T> {
+    pub async fn receive<T: DeserializeOwned + Send + 'static>() -> Message<T> {
         PROCESS
             .with(|process| process.channel.clone())
             .recv_async()
@@ -99,7 +101,7 @@ impl Process {
 
     /// Receives a single filtered message that matches the given type from the current processes mailbox.
     #[must_use]
-    pub async fn filter_receive<T: Send + 'static>(&self) -> Message<T> {
+    pub async fn filter_receive<T: DeserializeOwned + Send + 'static>(&self) -> Message<T> {
         Self::receiver().filter_receive().await
     }
 

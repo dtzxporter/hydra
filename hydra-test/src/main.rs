@@ -1,5 +1,8 @@
 use std::time::Duration;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use hydra::Message;
 use hydra::Pid;
 use hydra::Process;
@@ -10,7 +13,7 @@ use hydra_platform::GenServer;
 use hydra_platform::GenServerOptions;
 use hydra_platform::Reply;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 enum MyMessage {
     Hello(String),
     Bye(Vec<u8>),

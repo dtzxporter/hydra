@@ -3,12 +3,18 @@ name = "hydra"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+json = ["dep:serde_json"]
+
 [dependencies]
 flume.workspace = true
 bytes.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 bincode.workspace = true
+serde.workspace = true
 once_cell.workspace = true
 bitflags.workspace = true
 pin-project-lite.workspace = true
+
+serde_json = { workspace = true, optional = true }

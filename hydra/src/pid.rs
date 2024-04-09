@@ -1,5 +1,8 @@
 use std::fmt::Debug;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 pub const PID_ID_BITS: u64 = 48;
 pub const PID_ID_MAXIMUM: u64 = (1 << PID_ID_BITS) - 1;
 
@@ -48,5 +51,23 @@ impl Pid {
 impl Debug for Pid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Pid<{}, {}>", self.node(), self.id())
+    }
+}
+
+impl Serialize for Pid {
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        unimplemented!()
+    }
+}
+
+impl<'de> Deserialize<'de> for Pid {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        unimplemented!()
     }
 }

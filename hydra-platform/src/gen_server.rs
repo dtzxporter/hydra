@@ -1,5 +1,9 @@
 use std::future::Future;
 
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use serde::Serialize;
+
 use hydra::Dest;
 use hydra::Message;
 use hydra::Monitor;
@@ -13,6 +17,7 @@ use tokio::time::timeout;
 use crate::GenServerOptions;
 use crate::Reply;
 
+#[derive(Serialize, Deserialize)]
 pub(crate) enum GenServerMessage<T: Send + 'static> {
     Cast(Pid, T),
     Call(Pid, Monitor, T),
@@ -23,7 +28,7 @@ pub trait GenServer: Sized + Send + 'static {
     /// The type of the init argument that this server will use.
     type InitArg: Send;
     /// The message type that this server will use.
-    type Message: Send + 'static;
+    type Message: DeserializeOwned + Send + 'static;
 
     fn init(&mut self, init_arg: Self::InitArg) -> impl Future<Output = ()> + Send;
 
