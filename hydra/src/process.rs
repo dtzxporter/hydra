@@ -164,9 +164,7 @@ impl Process {
 
     /// Returns true if the given [Pid] is alive on the local node.
     #[must_use]
-    pub fn alive<T: Into<Pid>>(pid: T) -> bool {
-        let pid = pid.into();
-
+    pub fn alive(pid: Pid) -> bool {
         if !pid.is_local() {
             panic!("Expected a local pid!");
         }
@@ -179,8 +177,7 @@ impl Process {
     }
 
     /// Registers the given [Pid] under `name` if the process is local, active, and the name is not already registered.
-    pub fn register<T: Into<Pid>, S: Into<String>>(pid: T, name: S) {
-        let pid = pid.into();
+    pub fn register<S: Into<String>>(pid: Pid, name: S) {
         let name = name.into();
 
         if !pid.is_local() {
@@ -250,9 +247,8 @@ impl Process {
     }
 
     /// Creates a bi-directional link between the current process and the given process.
-    pub fn link<T: Into<Pid>>(pid: T) {
+    pub fn link(pid: Pid) {
         let current = Self::current();
-        let pid = pid.into();
 
         if pid == current {
             return;
@@ -277,9 +273,8 @@ impl Process {
     }
 
     /// Removes the link between the calling process and the given process.
-    pub fn unlink<T: Into<Pid>>(pid: T) {
+    pub fn unlink(pid: Pid) {
         let current = Self::current();
-        let pid = pid.into();
 
         if pid == current {
             return;
@@ -388,8 +383,7 @@ impl Process {
     }
 
     /// Sends an exit signal with the given reason to [Pid].
-    pub fn exit<T: Into<Pid>, E: Into<ExitReason>>(pid: T, exit_reason: E) {
-        let pid = pid.into();
+    pub fn exit<E: Into<ExitReason>>(pid: Pid, exit_reason: E) {
         let exit_reason = exit_reason.into();
 
         if !pid.is_local() {
