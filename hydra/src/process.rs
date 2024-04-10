@@ -386,6 +386,21 @@ impl Process {
             .unwrap()
             .set_flags(flags)
     }
+
+    /// Sends an exit signal with the given reason to [Pid].
+    pub fn exit<T: Into<Pid>, E: Into<ExitReason>>(pid: T, exit_reason: E) {
+        let pid = pid.into();
+        let exit_reason = exit_reason.into();
+
+        if !pid.is_local() {
+            unimplemented!("Remote process exit unsupported!");
+        }
+
+        PROCESS_REGISTRY
+            .write()
+            .unwrap()
+            .exit_process(pid, Self::current(), exit_reason);
+    }
 }
 
 impl Drop for Process {

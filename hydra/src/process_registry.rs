@@ -28,6 +28,44 @@ impl ProcessRegistry {
         }
     }
 
+    /// Processes an exit signal for the given [Pid] with the `exit_reason`.
+    pub fn exit_process(&mut self, pid: Pid, from: Pid, exit_reason: ExitReason) {
+        let Some(process) = self.processes.get_mut(&pid.id()) else {
+            return;
+        };
+
+        let trapping_exits = process.flags().contains(ProcessFlags::TRAP_EXIT);
+
+        match exit_reason {
+            ExitReason::Normal => {
+                if pid == from {
+                    process.exit_reason = exit_reason;
+                    process.handle.abort();
+                } else if trapping_exits {
+                    process
+                        .channel
+                        .send(MessageState::System(SystemMessage::Exit(from, exit_reason)))
+                        .unwrap();
+                }
+            }
+            ExitReason::Kill => {
+                process.exit_reason = exit_reason;
+                process.handle.abort();
+            }
+            ExitReason::Custom(_) => {
+                if trapping_exits {
+                    process
+                        .channel
+                        .send(MessageState::System(SystemMessage::Exit(from, exit_reason)))
+                        .unwrap();
+                } else {
+                    process.exit_reason = exit_reason;
+                    process.handle.abort();
+                }
+            }
+        }
+    }
+
     /// Forwards an exit signal to the linked [Pid] from the given [Pid] with the `exit_reason`.
     pub fn exit_signal_linked_process(&mut self, pid: Pid, from: Pid, exit_reason: ExitReason) {
         if let Some(process) = self.processes.get_mut(&pid.id()) {
