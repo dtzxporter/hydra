@@ -187,6 +187,7 @@ impl Process {
         let mut registry = PROCESS_REGISTRY.write().unwrap();
 
         if registry.named_processes.contains_key(&name) {
+            drop(registry);
             panic!("Name {:?} registered to another process!", name);
         }
 
@@ -196,6 +197,7 @@ impl Process {
             .expect("Process does not exist!");
 
         if process.name.is_some() {
+            drop(registry);
             panic!("Process {:?} was already registered!", pid);
         }
 
@@ -217,6 +219,7 @@ impl Process {
                 process.name = None;
             }
         } else {
+            drop(registry);
             panic!("Name {:?} was not registered!", name);
         }
     }
@@ -268,6 +271,7 @@ impl Process {
                 .get_mut(&current.id())
                 .map(|x| x.links.insert(pid));
         } else {
+            drop(registry);
             panic!("Process was not an existing process!")
         }
     }
@@ -457,6 +461,7 @@ where
 
     // Guard against spawning more processes than we can allocate ids for.
     if registry.processes.len() >= PID_ID_MAXIMUM as usize {
+        drop(registry);
         panic!("Maximum number of processes spawned!");
     }
 
