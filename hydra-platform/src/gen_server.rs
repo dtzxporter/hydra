@@ -1,6 +1,5 @@
 use std::future::Future;
 
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -9,8 +8,9 @@ use hydra::Message;
 use hydra::Monitor;
 use hydra::Pid;
 use hydra::Process;
-
+use hydra::Receivable;
 use hydra::SystemMessage;
+
 use tokio::sync::oneshot;
 use tokio::time::timeout;
 
@@ -28,7 +28,7 @@ pub trait GenServer: Sized + Send + 'static {
     /// The type of the init argument that this server will use.
     type InitArg: Send;
     /// The message type that this server will use.
-    type Message: DeserializeOwned + Send + 'static;
+    type Message: Receivable;
 
     fn init(&mut self, init_arg: Self::InitArg) -> impl Future<Output = ()> + Send;
 

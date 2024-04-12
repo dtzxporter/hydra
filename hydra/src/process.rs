@@ -3,8 +3,6 @@ use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
-use serde::de::DeserializeOwned;
-
 use flume::Receiver;
 
 use crate::CatchUnwind;
@@ -17,6 +15,7 @@ use crate::Pid;
 use crate::ProcessFlags;
 use crate::ProcessReceiver;
 use crate::ProcessRegistration;
+use crate::Receivable;
 use crate::SystemMessage;
 use crate::PID_ID_MAXIMUM;
 use crate::PROCESS_REGISTRY;
@@ -58,7 +57,7 @@ impl Process {
     }
 
     /// Sends a single message to `dest` with the given `message`.
-    pub fn send<D: Into<Dest>, M: Send + 'static>(dest: D, message: M) {
+    pub fn send<D: Into<Dest>, M: Receivable>(dest: D, message: M) {
         let dest = dest.into();
 
         match dest {
@@ -89,7 +88,7 @@ impl Process {
 
     /// Receives a single message that matches the given type from the current processes mailbox or panics.
     #[must_use]
-    pub async fn receive<T: DeserializeOwned + Send + 'static>() -> Message<T> {
+    pub async fn receive<T: Receivable>() -> Message<T> {
         PROCESS
             .with(|process| process.channel.clone())
             .recv_async()
@@ -101,7 +100,7 @@ impl Process {
 
     /// Receives a single filtered message that matches the given type from the current processes mailbox.
     #[must_use]
-    pub async fn filter_receive<T: DeserializeOwned + Send + 'static>(&self) -> Message<T> {
+    pub async fn filter_receive<T: Receivable>(&self) -> Message<T> {
         Self::receiver().filter_receive().await
     }
 

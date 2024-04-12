@@ -1,11 +1,10 @@
-use serde::de::DeserializeOwned;
-
 use flume::Receiver;
 use flume::Sender;
 
 use crate::Message;
 use crate::MessageState;
 use crate::Pid;
+use crate::Receivable;
 use crate::PROCESS_REGISTRY;
 
 /// A peakable view of a process's mailbox.
@@ -57,7 +56,7 @@ impl ProcessReceiver {
 
     /// Receives a single message that matches the given type from the current processes mailbox or panics.
     #[must_use]
-    pub async fn receive<T: DeserializeOwned + Send + 'static>(&self) -> Message<T> {
+    pub async fn receive<T: Receivable>(&self) -> Message<T> {
         self.peak_receiver
             .as_ref()
             .unwrap()
@@ -70,7 +69,7 @@ impl ProcessReceiver {
 
     /// Receives a single filtered message that matches the given type from the current processes mailbox.
     #[must_use]
-    pub async fn filter_receive<T: DeserializeOwned + Send + 'static>(&self) -> Message<T> {
+    pub async fn filter_receive<T: Receivable>(&self) -> Message<T> {
         loop {
             let message = self
                 .peak_receiver

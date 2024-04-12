@@ -1,8 +1,7 @@
-use serde::de::DeserializeOwned;
-
 use std::fmt::Debug;
 
 use crate::Message;
+use crate::Receivable;
 use crate::SystemMessage;
 
 /// An internal message state based on where it came from.
@@ -17,7 +16,7 @@ pub enum MessageState {
 
 impl<T> TryFrom<MessageState> for Message<T>
 where
-    T: DeserializeOwned + Send + 'static,
+    T: Receivable,
 {
     type Error = MessageState;
 

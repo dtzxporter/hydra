@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use hydra::Monitor;
 use hydra::Pid;
 use hydra::Process;
+use hydra::Receivable;
 
 use crate::GenServerMessage;
 
@@ -15,7 +16,7 @@ pub struct Reply<T: Send + 'static> {
 
 impl<T> Reply<T>
 where
-    T: Send + 'static,
+    T: Receivable,
 {
     pub fn new(to: Pid, tag: Monitor) -> Self {
         Self {
