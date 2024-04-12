@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use crate::Pid;
+use crate::Reference;
 
 /// A process destination.
 #[derive(Debug, Clone)]
@@ -11,6 +12,8 @@ pub enum Dest {
     Named(Cow<'static, str>),
     /// A remote registered process name.
     RemoteNamed(Cow<'static, str>, String),
+    /// A reference to an alias.
+    Alias(Reference),
 }
 
 impl From<Pid> for Dest {

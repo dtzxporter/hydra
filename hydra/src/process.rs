@@ -84,6 +84,9 @@ impl Process {
             Dest::RemoteNamed(_, _) => {
                 unimplemented!("Send remote named not supported!")
             }
+            Dest::Alias(_) => {
+                unimplemented!("Send alias not supported!")
+            }
         }
     }
 

@@ -18,6 +18,7 @@ mod process_receiver;
 mod process_registration;
 mod process_registry;
 mod receivable;
+mod reference;
 mod system_message;
 
 pub use dest::*;
@@ -32,6 +33,7 @@ pub use process::*;
 pub use process_flags::*;
 pub use process_receiver::*;
 pub use receivable::*;
+pub use reference::*;
 pub use system_message::*;
 
 pub(crate) use catch_unwind::*;
