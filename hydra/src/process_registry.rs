@@ -14,9 +14,9 @@ use crate::SystemMessage;
 /// The global process registry.
 pub struct ProcessRegistry {
     /// A collection of process id -> process registration.
-    pub processes: HashMap<u64, ProcessRegistration>,
+    pub processes: HashMap<u32, ProcessRegistration>,
     /// A collection of registered named processes.
-    pub named_processes: HashMap<String, u64>,
+    pub named_processes: HashMap<String, u32>,
 }
 
 impl ProcessRegistry {

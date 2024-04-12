@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
 use flume::Receiver;
@@ -17,7 +17,6 @@ use crate::ProcessReceiver;
 use crate::ProcessRegistration;
 use crate::Receivable;
 use crate::SystemMessage;
-use crate::PID_ID_MAXIMUM;
 use crate::PROCESS_REGISTRY;
 
 /// A light weight task that can send and receive messages.
@@ -69,6 +68,8 @@ impl Process {
                         .processes
                         .get(&pid.id())
                         .map(|process| process.channel.send(Message::User(message).into()));
+                } else {
+                    unimplemented!("Send remote pid not supported!")
                 }
             }
             Dest::Named(name) => {
@@ -164,7 +165,7 @@ impl Process {
     /// Returns true if the given [Pid] is alive on the local node.
     #[must_use]
     pub fn alive(pid: Pid) -> bool {
-        if !pid.is_local() {
+        if pid.is_remote() {
             panic!("Expected a local pid!");
         }
 
@@ -179,7 +180,7 @@ impl Process {
     pub fn register<S: Into<String>>(pid: Pid, name: S) {
         let name = name.into();
 
-        if !pid.is_local() {
+        if pid.is_remote() {
             panic!("Expected local pid for register!");
         }
 
@@ -256,7 +257,7 @@ impl Process {
             return;
         }
 
-        if !pid.is_local() {
+        if pid.is_remote() {
             unimplemented!("Remote process link unsupported!");
         }
 
@@ -283,7 +284,7 @@ impl Process {
             return;
         }
 
-        if !pid.is_local() {
+        if pid.is_remote() {
             unimplemented!("Remote process link unsupported!");
         }
 
@@ -313,7 +314,7 @@ impl Process {
             panic!("Can not monitor yourself!");
         }
 
-        if !pid.is_local() {
+        if pid.is_remote() {
             unimplemented!("Remote process monitor unsupported!");
         }
 
@@ -351,7 +352,7 @@ impl Process {
 
     /// Demonitors the monitor identifier by the given [Monitor] reference.
     pub fn demonitor(monitor: Monitor) {
-        if !monitor.pid().is_local() {
+        if monitor.pid().is_remote() {
             unimplemented!("Remote process monitor unsupported!");
         }
 
@@ -389,7 +390,7 @@ impl Process {
     pub fn exit<E: Into<ExitReason>>(pid: Pid, exit_reason: E) {
         let exit_reason = exit_reason.into();
 
-        if !pid.is_local() {
+        if pid.is_remote() {
             unimplemented!("Remote process exit unsupported!");
         }
 
@@ -411,7 +412,7 @@ impl Drop for Process {
         }
 
         for link in process.links {
-            if !link.is_local() {
+            if link.is_remote() {
                 unimplemented!("Remote process link unsupported!");
             }
 
@@ -419,7 +420,7 @@ impl Drop for Process {
         }
 
         for (monitor, monitor_id) in process.monitors {
-            if !monitor.is_local() {
+            if monitor.is_remote() {
                 unimplemented!("Remote process monitor unsupported!");
             }
 
@@ -432,7 +433,7 @@ impl Drop for Process {
         }
 
         for (monitor_id, monitor) in process.installed_monitors {
-            if !monitor.is_local() {
+            if monitor.is_remote() {
                 unimplemented!("Remote process monitor unsupported!");
             }
 
@@ -453,13 +454,13 @@ where
     T: Future<Output = ()> + Send + 'static,
     T::Output: Send + 'static,
 {
-    static ID: AtomicU64 = AtomicU64::new(1);
+    static ID: AtomicU32 = AtomicU32::new(1);
 
     let mut registry = PROCESS_REGISTRY.write().unwrap();
     let mut next_id = ID.fetch_add(1, Ordering::Relaxed);
 
     // Guard against spawning more processes than we can allocate ids for.
-    if registry.processes.len() >= PID_ID_MAXIMUM as usize {
+    if registry.processes.len() >= u32::MAX as usize {
         drop(registry);
         panic!("Maximum number of processes spawned!");
     }
@@ -472,7 +473,7 @@ where
         }
 
         // Make sure the id is lower than the maximum id value, and not already taken.
-        if next_id > PID_ID_MAXIMUM || registry.processes.contains_key(&next_id) {
+        if registry.processes.contains_key(&next_id) {
             next_id = ID.fetch_add(1, Ordering::Relaxed);
             continue;
         }
