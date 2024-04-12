@@ -2,6 +2,7 @@ mod catch_unwind;
 mod dest;
 mod exit_reason;
 mod frame;
+mod local;
 mod message;
 mod message_state;
 mod monitor;
@@ -21,6 +22,7 @@ mod system_message;
 
 pub use dest::*;
 pub use exit_reason::*;
+pub use local::*;
 pub use message::*;
 pub use monitor::*;
 pub use node::*;
