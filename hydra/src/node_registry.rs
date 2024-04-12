@@ -4,10 +4,10 @@ use std::sync::RwLock;
 
 use once_cell::sync::Lazy;
 
-use crate::Pid;
+use crate::NodeRegistration;
 
 /// Maps node id to the process responsible for the node.
-pub static NODE_REGISTRY: Lazy<RwLock<HashMap<u64, Pid>>> =
+pub static NODE_REGISTRY: Lazy<RwLock<HashMap<u64, NodeRegistration>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 // When a pid is serialized over the wire, we need to lookup it's node@ip:port combination.

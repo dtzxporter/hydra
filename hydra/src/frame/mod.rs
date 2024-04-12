@@ -30,6 +30,13 @@ const FRAME_CONFIG: Configuration<LittleEndian, Fixint> = config::standard()
 #[derive(Debug, Encode, Decode)]
 pub enum Frame {
     Hello(Hello),
+    Hwllo1,
+}
+
+impl From<Hello> for Frame {
+    fn from(value: Hello) -> Self {
+        Self::Hello(value)
+    }
 }
 
 /// The frame codec.
@@ -38,7 +45,7 @@ pub struct Codec;
 
 impl Codec {
     /// Constructs a new instance of [Codec] with default settings.
-    pub const fn _new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
