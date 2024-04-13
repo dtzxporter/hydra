@@ -1,3 +1,4 @@
+mod alias;
 mod catch_unwind;
 mod dest;
 mod exit_reason;
@@ -36,6 +37,7 @@ pub use receivable::*;
 pub use reference::*;
 pub use system_message::*;
 
+pub(crate) use alias::*;
 pub(crate) use catch_unwind::*;
 pub(crate) use message_state::*;
 pub(crate) use node_process::*;
