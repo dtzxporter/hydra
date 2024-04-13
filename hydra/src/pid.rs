@@ -27,7 +27,7 @@ impl Pid {
         matches!(self, Self::Remote(_, _))
     }
 
-    /// Fetches the process id of the [Pid].
+    /// Gets the id part of the [Pid].
     pub(crate) const fn id(&self) -> u32 {
         match self {
             Self::Local(id) => id.get(),
