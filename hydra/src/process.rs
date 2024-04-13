@@ -1,10 +1,17 @@
+use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
 use flume::Receiver;
+use flume::Sender;
 
+use crate::create_alias;
+use crate::destroy_alias;
+use crate::destroy_aliases;
+use crate::retrieve_alias;
 use crate::CatchUnwind;
 use crate::Dest;
 use crate::ExitReason;
@@ -16,15 +23,28 @@ use crate::ProcessFlags;
 use crate::ProcessReceiver;
 use crate::ProcessRegistration;
 use crate::Receivable;
+use crate::Reference;
 use crate::SystemMessage;
 use crate::PROCESS_REGISTRY;
+
+/// The send type for a process.
+pub(crate) type ProcessSend = Sender<MessageState>;
+/// The receive type for a process.
+pub(crate) type ProcessReceive = Receiver<MessageState>;
 
 /// A light weight task that can send and receive messages.
 pub struct Process {
     /// The unique id of this process.
     pub(crate) pid: Pid,
+    /// The sender for this process.
+    pub(crate) sender: ProcessSend,
     /// The inbox for this process.
-    pub(crate) channel: Receiver<MessageState>,
+    pub(crate) receiver: ProcessReceive,
+    /// A collection of process aliases.
+    pub(crate) aliases: RefCell<BTreeSet<u64>>,
+    /// A collection of process monitor references.
+    #[allow(unused)]
+    pub(crate) monitors: RefCell<BTreeSet<u64>>,
 }
 
 tokio::task_local! {
@@ -34,8 +54,37 @@ tokio::task_local! {
 
 impl Process {
     /// Constructs a new [Process] from the given [Pid] and channel.
-    pub(crate) const fn new(pid: Pid, channel: Receiver<MessageState>) -> Self {
-        Self { pid, channel }
+    pub(crate) fn new(pid: Pid, sender: ProcessSend, receiver: ProcessReceive) -> Self {
+        Self {
+            pid,
+            sender,
+            receiver,
+            aliases: RefCell::new(BTreeSet::new()),
+            monitors: RefCell::new(BTreeSet::new()),
+        }
+    }
+
+    /// Creates a process alias. If reply is `true` the alias deactivates when the first message is received.
+    ///
+    /// Otherwise, you need to call `unalias(reference)` to deactivate the alias.
+    pub fn alias(reply: bool) -> Reference {
+        let reference = Reference::new();
+
+        let sender = PROCESS.with(|process| {
+            process.aliases.borrow_mut().insert(reference.id());
+            process.sender.clone()
+        });
+
+        create_alias(sender, reference, reply);
+
+        reference
+    }
+
+    /// Explicitly deactivates a process alias.
+    ///
+    /// Returns `true` if the alias was currently-active for the current process, or `false` otherwise.
+    pub fn unalias(reference: Reference) -> bool {
+        destroy_alias(reference)
     }
 
     /// Returns the current [Pid].
@@ -84,8 +133,13 @@ impl Process {
             Dest::RemoteNamed(_, _) => {
                 unimplemented!("Send remote named not supported!")
             }
-            Dest::Alias(_) => {
-                unimplemented!("Send alias not supported!")
+            Dest::Alias(reference) => {
+                if reference.is_local() {
+                    retrieve_alias(reference)
+                        .map(|alias| alias.sender.send(Message::User(message).into()));
+                } else {
+                    unimplemented!("Send alias not supported!")
+                }
             }
         }
     }
@@ -94,7 +148,7 @@ impl Process {
     #[must_use]
     pub async fn receive<T: Receivable>() -> Message<T> {
         PROCESS
-            .with(|process| process.channel.clone())
+            .with(|process| process.receiver.clone())
             .recv_async()
             .await
             .unwrap()
@@ -117,7 +171,7 @@ impl Process {
     #[must_use]
     pub fn receiver() -> ProcessReceiver {
         let current = Self::current();
-        let receiver = PROCESS.with(|process| process.channel.clone());
+        let receiver = PROCESS.with(|process| process.receiver.clone());
 
         let mut registry = PROCESS_REGISTRY.write().unwrap();
         let process = registry.processes.get_mut(&current.id()).unwrap();
@@ -414,6 +468,8 @@ impl Drop for Process {
             registry.named_processes.remove(&name);
         }
 
+        destroy_aliases(self.aliases.borrow().iter());
+
         for link in process.links {
             if link.is_remote() {
                 unimplemented!("Remote process link unsupported!");
@@ -488,7 +544,7 @@ where
     let (tx, rx) = flume::unbounded();
 
     let pid = Pid::local(next_id);
-    let process = Process::new(pid, rx);
+    let process = Process::new(pid, tx.clone(), rx);
 
     // Spawn the process with the newly created process object in scope.
     let handle = tokio::spawn(PROCESS.scope(process, async move {

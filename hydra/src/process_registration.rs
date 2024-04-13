@@ -3,21 +3,19 @@ use std::collections::BTreeSet;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
-use flume::Sender;
-
 use tokio::task::JoinHandle;
 
 use crate::ExitReason;
-use crate::MessageState;
 use crate::Pid;
 use crate::ProcessFlags;
+use crate::ProcessSend;
 
 /// Process registration information.
 pub struct ProcessRegistration {
     /// A handle to the task that this process lives in.
     pub handle: JoinHandle<()>,
     /// The mailbox of this process.
-    pub channel: Sender<MessageState>,
+    pub channel: ProcessSend,
     /// Registered name of this process or [None] when unregistered.
     pub name: Option<String>,
     /// A collection of linked processes.
@@ -36,7 +34,7 @@ pub struct ProcessRegistration {
 
 impl ProcessRegistration {
     /// Constructs a new [ProcessRegistration] from a given task handle, and channel.
-    pub const fn new(handle: JoinHandle<()>, channel: Sender<MessageState>) -> Self {
+    pub const fn new(handle: JoinHandle<()>, channel: ProcessSend) -> Self {
         Self {
             handle,
             channel,

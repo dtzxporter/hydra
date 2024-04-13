@@ -1,9 +1,8 @@
-use flume::Receiver;
-use flume::Sender;
-
 use crate::Message;
 use crate::MessageState;
 use crate::Pid;
+use crate::ProcessReceive;
+use crate::ProcessSend;
 use crate::Receivable;
 use crate::PROCESS_REGISTRY;
 
@@ -12,20 +11,16 @@ pub struct ProcessReceiver {
     /// The process id of the receivers inbox.
     pid: Pid,
     /// The return inbox for kept messages.
-    current_send: Option<Sender<MessageState>>,
+    current_send: Option<ProcessSend>,
     /// The inbox temporarily used for sending messages.
-    peak_send: Sender<MessageState>,
+    peak_send: ProcessSend,
     /// The inbox temporarily used for receiving messages.
-    peak_receiver: Option<Receiver<MessageState>>,
+    peak_receiver: Option<ProcessReceive>,
 }
 
 impl ProcessReceiver {
     /// Constructs a new receiver channel that allows peaking from the stream, when dropped, it will reset to the original values.
-    pub(crate) fn new(
-        pid: Pid,
-        sender: Sender<MessageState>,
-        receiver: Receiver<MessageState>,
-    ) -> Self {
+    pub(crate) fn new(pid: Pid, sender: ProcessSend, receiver: ProcessReceive) -> Self {
         let (tx, rx) = flume::unbounded();
 
         for message in receiver.drain() {
@@ -41,7 +36,7 @@ impl ProcessReceiver {
     }
 
     /// Returns a copy of the current receiver's sender.
-    pub(crate) fn sender(&self) -> Sender<MessageState> {
+    pub(crate) fn sender(&self) -> ProcessSend {
         self.peak_send.clone()
     }
 
