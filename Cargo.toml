@@ -2,7 +2,6 @@
 members = ["hydra", "hydra-macros", "hydra-platform", "hydra-test"]
 resolver = "2"
 
-
 [workspace.dependencies]
 flume = "0.11"
 once_cell = "1.19"
@@ -20,3 +19,9 @@ tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
 
 hydra-macros = { path = "./hydra-macros" }
+
+[profile.release]
+lto = "fat"
+strip = true
+panic = "abort"
+codegen-units = 1
