@@ -1,0 +1,34 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
+
+use hydra::Process;
+
+static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+#[hydra::main]
+async fn main() {
+    let pid1 = Process::spawn(async {
+        loop {
+            let _ = Process::receive::<String>().await;
+            COUNTER.fetch_add(1, Ordering::Relaxed);
+        }
+    });
+
+    Process::spawn_blocking(move || loop {
+        Process::send(pid1, String::from("yay this is awesome!"));
+    });
+
+    let start = std::time::Instant::now();
+
+    loop {
+        Process::sleep(Duration::from_secs(1)).await;
+
+        let elapsed = start.elapsed();
+        let count = COUNTER.load(Ordering::Relaxed);
+
+        let ops = count / elapsed.as_secs().max(1);
+
+        println!("Msg/s: {}", ops);
+    }
+}
