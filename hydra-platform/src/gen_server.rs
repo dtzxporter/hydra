@@ -9,7 +9,6 @@ use hydra::Monitor;
 use hydra::Pid;
 use hydra::Process;
 use hydra::Receivable;
-use hydra::SystemMessage;
 
 use tokio::sync::oneshot;
 use tokio::time::timeout;
@@ -53,35 +52,47 @@ pub trait GenServer: Sized + Send + 'static {
             GenServerMessage::Call(Process::current(), monitor, message),
         );
 
-        let receiver = Process::receiver();
-
-        loop {
-            let message = receiver
-                .filter_receive::<GenServerMessage<Self::Message>>()
-                .await;
-
-            match message {
-                Message::User(GenServerMessage::CallReply(mref, reply)) => {
-                    if monitor == mref {
-                        Process::demonitor(monitor);
-                        return reply;
-                    } else {
-                        receiver.keep(Message::User(GenServerMessage::CallReply(mref, reply)));
+        let _receiver = Process::receiver::<GenServerMessage<Self::Message>>()
+            .ignore_type()
+            .select(|message| {
+                // Do this
+                if let Message::User(GenServerMessage::CallReply(mref, _)) = message {
+                    if *mref == monitor {
+                        return true;
                     }
                 }
-                Message::System(SystemMessage::ProcessDown(_, mref, ref exit_reason)) => {
-                    if monitor == mref {
-                        panic!(
-                            "Process went down while waiting for a reply: {:?}",
-                            exit_reason
-                        );
-                    } else {
-                        receiver.keep(message);
-                    }
-                }
-                _ => receiver.keep(message),
-            }
-        }
+
+                false
+            })
+            .await;
+
+        // loop {
+        //     let message = receiver.receive::().await;
+
+        //     match message {
+        //         Message::User(GenServerMessage::CallReply(mref, reply)) => {
+        //             if monitor == mref {
+        //                 Process::demonitor(monitor);
+        //                 return reply;
+        //             } else {
+        //                 receiver.keep(Message::User(GenServerMessage::CallReply(mref, reply)));
+        //             }
+        //         }
+        //         Message::System(SystemMessage::ProcessDown(_, mref, ref exit_reason)) => {
+        //             if monitor == mref {
+        //                 panic!(
+        //                     "Process went down while waiting for a reply: {:?}",
+        //                     exit_reason
+        //                 );
+        //             } else {
+        //                 receiver.keep(message);
+        //             }
+        //         }
+        //         _ => receiver.keep(message),
+        //     }
+        // }
+
+        panic!()
     }
 
     fn handle_info(&mut self, info: Message<Self::Message>) -> impl Future<Output = ()> + Send {
@@ -146,7 +157,9 @@ async fn start_internal<T: GenServer + Send + 'static>(
         let _ = tx.send(());
 
         loop {
-            let message = Process::receive::<GenServerMessage<T::Message>>().await;
+            let message = Process::receiver::<GenServerMessage<T::Message>>()
+                .receive()
+                .await;
 
             match message {
                 Message::User(GenServerMessage::Cast(from, cast)) => {

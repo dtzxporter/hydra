@@ -2,6 +2,7 @@ use dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 
+use crate::ProcessItem;
 use crate::ProcessSend;
 use crate::Reference;
 
@@ -27,7 +28,7 @@ pub fn destroy_alias(reference: Reference) -> bool {
     ALIASES.remove(&reference.id()).is_some()
 }
 
-/// Destroys all of the alias for every reference.
+/// Destroys all of the alias for every given reference.
 pub fn destroy_aliases<'a, A: IntoIterator<Item = &'a u64>>(ids: A) {
     for id in ids {
         ALIASES.remove(id);
@@ -47,5 +48,12 @@ pub fn retrieve_alias(reference: Reference) -> Option<Alias> {
         }
     });
 
-    result.map(|(_, alias)| alias).or(active)
+    result
+        .map(|(_, alias)| {
+            let _ = alias
+                .sender
+                .send(ProcessItem::AliasDeactivated(reference.id()));
+            alias
+        })
+        .or(active)
 }

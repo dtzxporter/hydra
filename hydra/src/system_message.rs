@@ -3,7 +3,7 @@ use crate::Monitor;
 use crate::Pid;
 
 /// A message sent from the hydra system.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SystemMessage {
     /// A process has exited with the given reason.
     Exit(Pid, ExitReason),

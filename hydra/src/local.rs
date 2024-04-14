@@ -8,6 +8,7 @@ use std::ops::DerefMut;
 ///
 /// A [Local] can be used to send any `T: Send + 'static` type to another local process.
 #[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
 pub struct Local<T: Send + 'static>(T);
 
 impl<T> Local<T>

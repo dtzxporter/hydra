@@ -1,8 +1,10 @@
 use std::time::Duration;
+use std::time::Instant;
 
 use serde::Deserialize;
 use serde::Serialize;
 
+use hydra::Local;
 use hydra::Message;
 use hydra::Pid;
 use hydra::Process;
@@ -10,13 +12,12 @@ use hydra::ProcessFlags;
 use hydra::SystemMessage;
 
 use hydra_platform::GenServer;
-use hydra_platform::GenServerOptions;
 use hydra_platform::Reply;
 
 #[derive(Debug, Serialize, Deserialize)]
 enum MyMessage {
     Hello(String),
-    Bye(Vec<u8>),
+    Bye(Vec<u8>, Local<Instant>),
     Call(i32),
     Resp(i32),
 }
@@ -70,24 +71,24 @@ async fn main() {
         // Send it.
         Process::send(us, MyMessage::Hello("wins".into()));
 
-        let pid = MyServer.start_link((), GenServerOptions::new()).await;
+        // let pid = MyServer.start_link((), GenServerOptions::new()).await;
 
-        MyServer::cast(pid, MyMessage::Hello(String::from("yay")));
+        //MyServer::cast(pid, MyMessage::Hello(String::from("yay")));
 
-        let start = std::time::Instant::now();
-        let _ = MyServer::call(pid, MyMessage::Call(20)).await;
+        //let start = std::time::Instant::now();
+        //let _ = MyServer::call(pid, MyMessage::Call(20)).await;
 
-        println!("Got call result:   {:?}", start.elapsed() / 100);
+        //println!("Got call result:   {:?}", start.elapsed() / 100);
 
         loop {
-            let recv = Process::receive::<MyMessage>().await;
+            let recv = Process::receiver::<MyMessage>().receive().await;
 
             match recv {
                 Message::User(MyMessage::Hello(string)) => {
                     println!("Got message: {:?}", string);
                 }
-                Message::User(MyMessage::Bye(bye)) => {
-                    println!("Got bye: {:?}", bye);
+                Message::User(MyMessage::Bye(bye, instant)) => {
+                    println!("Got bye: {:?} {:?}", bye, instant.elapsed());
                 }
                 Message::User(_) => {
                     unimplemented!()
@@ -95,7 +96,10 @@ async fn main() {
                 Message::System(SystemMessage::Exit(from, exit_reason)) => {
                     println!("Got exit signal from: {:?} reason: {:?}", from, exit_reason);
 
-                    Process::send(us, MyMessage::Bye("wins".as_bytes().to_vec()));
+                    Process::send(
+                        us,
+                        MyMessage::Bye("wins".as_bytes().to_vec(), Local::new(Instant::now())),
+                    );
                 }
                 Message::System(SystemMessage::ProcessDown(from, monitor, exit_reason)) => {
                     println!(
@@ -103,7 +107,10 @@ async fn main() {
                         from, monitor, exit_reason
                     );
 
-                    Process::send(us, MyMessage::Bye("wins".as_bytes().to_vec()));
+                    Process::send(
+                        us,
+                        MyMessage::Bye("wins".as_bytes().to_vec(), Local::new(Instant::now())),
+                    );
                 }
             }
         }

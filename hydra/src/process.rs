@@ -16,10 +16,10 @@ use crate::CatchUnwind;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Message;
-use crate::MessageState;
 use crate::Monitor;
 use crate::Pid;
 use crate::ProcessFlags;
+use crate::ProcessItem;
 use crate::ProcessReceiver;
 use crate::ProcessRegistration;
 use crate::Receivable;
@@ -28,9 +28,9 @@ use crate::SystemMessage;
 use crate::PROCESS_REGISTRY;
 
 /// The send type for a process.
-pub(crate) type ProcessSend = Sender<MessageState>;
+pub(crate) type ProcessSend = Sender<ProcessItem>;
 /// The receive type for a process.
-pub(crate) type ProcessReceive = Receiver<MessageState>;
+pub(crate) type ProcessReceive = Receiver<ProcessItem>;
 
 /// A light weight task that can send and receive messages.
 pub struct Process {
@@ -38,8 +38,10 @@ pub struct Process {
     pub(crate) pid: Pid,
     /// The sender for this process.
     pub(crate) sender: ProcessSend,
-    /// The inbox for this process.
+    /// The receiver for this process.
     pub(crate) receiver: ProcessReceive,
+    /// The messages already popped from the receiver for this process.
+    pub(crate) items: RefCell<Vec<ProcessItem>>,
     /// A collection of process aliases.
     pub(crate) aliases: RefCell<BTreeSet<u64>>,
     /// A collection of process monitor references.
@@ -59,6 +61,7 @@ impl Process {
             pid,
             sender,
             receiver,
+            items: RefCell::new(Vec::new()),
             aliases: RefCell::new(BTreeSet::new()),
             monitors: RefCell::new(BTreeSet::new()),
         }
@@ -144,43 +147,10 @@ impl Process {
         }
     }
 
-    /// Receives a single message that matches the given type from the current processes mailbox or panics.
+    /// Creates a receiver for a single message that matches the given type from the current processes mailbox.
     #[must_use]
-    pub async fn receive<T: Receivable>() -> Message<T> {
-        PROCESS
-            .with(|process| process.receiver.clone())
-            .recv_async()
-            .await
-            .unwrap()
-            .try_into()
-            .unwrap()
-    }
-
-    /// Receives a single filtered message that matches the given type from the current processes mailbox.
-    #[must_use]
-    pub async fn filter_receive<T: Receivable>(&self) -> Message<T> {
-        Self::receiver().filter_receive().await
-    }
-
-    /// Creates a peakable view of the current processes mailbox which allows skipping values we don't want while maintaining order.
-    ///
-    /// By default, `receive()` will remove the message from the processes mailbox, removing it's unique order.
-    /// When using `receiver()` you can call `keep(msg)` to keep the message at it's current offset in the mailbox.
-    ///
-    /// This was done because it's less efficient to support keeping the message order.
-    #[must_use]
-    pub fn receiver() -> ProcessReceiver {
-        let current = Self::current();
-        let receiver = PROCESS.with(|process| process.receiver.clone());
-
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-        let process = registry.processes.get_mut(&current.id()).unwrap();
-
-        let receiver = ProcessReceiver::new(current, process.channel.clone(), receiver);
-
-        process.channel = receiver.sender();
-
-        receiver
+    pub fn receiver<T: Receivable>() -> ProcessReceiver<T> {
+        ProcessReceiver::new()
     }
 
     /// Spawns the given `function` as a process and returns it's [Pid].
@@ -396,7 +366,7 @@ impl Process {
                 .get(&current.id())
                 .map(|process| process.channel.clone())
                 .unwrap()
-                .send(MessageState::System(SystemMessage::ProcessDown(
+                .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
                     pid,
                     Monitor::new(current, next_monitor_id),
                     ExitReason::Custom(String::from("noproc")),

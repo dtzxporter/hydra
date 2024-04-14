@@ -4,10 +4,10 @@ use std::sync::RwLock;
 use once_cell::sync::Lazy;
 
 use crate::ExitReason;
-use crate::MessageState;
 use crate::Monitor;
 use crate::Pid;
 use crate::ProcessFlags;
+use crate::ProcessItem;
 use crate::ProcessRegistration;
 use crate::SystemMessage;
 
@@ -44,7 +44,10 @@ impl ProcessRegistry {
                 } else if trapping_exits {
                     process
                         .channel
-                        .send(MessageState::System(SystemMessage::Exit(from, exit_reason)))
+                        .send(ProcessItem::SystemMessage(SystemMessage::Exit(
+                            from,
+                            exit_reason,
+                        )))
                         .unwrap();
                 }
             }
@@ -56,7 +59,10 @@ impl ProcessRegistry {
                 if trapping_exits {
                     process
                         .channel
-                        .send(MessageState::System(SystemMessage::Exit(from, exit_reason)))
+                        .send(ProcessItem::SystemMessage(SystemMessage::Exit(
+                            from,
+                            exit_reason,
+                        )))
                         .unwrap();
                 } else {
                     process.exit_reason = exit_reason;
@@ -72,7 +78,7 @@ impl ProcessRegistry {
             if process.flags().contains(ProcessFlags::TRAP_EXIT) {
                 process
                     .channel
-                    .send(MessageState::System(SystemMessage::Exit(
+                    .send(ProcessItem::SystemMessage(SystemMessage::Exit(
                         from,
                         exit_reason.clone(),
                     )))
@@ -96,7 +102,7 @@ impl ProcessRegistry {
             if process.installed_monitors.remove(&monitor_id).is_some() {
                 process
                     .channel
-                    .send(MessageState::System(SystemMessage::ProcessDown(
+                    .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
                         from,
                         Monitor::new(pid, monitor_id),
                         exit_reason,

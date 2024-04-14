@@ -1,96 +1,160 @@
-use crate::Message;
-use crate::MessageState;
-use crate::Pid;
-use crate::ProcessReceive;
-use crate::ProcessSend;
-use crate::Receivable;
-use crate::PROCESS_REGISTRY;
+use std::marker::PhantomData;
 
-/// A peakable view of a process's mailbox.
-pub struct ProcessReceiver {
-    /// The process id of the receivers inbox.
-    pid: Pid,
-    /// The return inbox for kept messages.
-    current_send: Option<ProcessSend>,
-    /// The inbox temporarily used for sending messages.
-    peak_send: ProcessSend,
-    /// The inbox temporarily used for receiving messages.
-    peak_receiver: Option<ProcessReceive>,
+use crate::Message;
+use crate::ProcessItem;
+use crate::Receivable;
+use crate::PROCESS;
+
+/// Used to receive messages from processes.
+pub struct ProcessReceiver<T: Receivable> {
+    ignore_type: bool,
+    _phantom: PhantomData<T>,
 }
 
-impl ProcessReceiver {
-    /// Constructs a new receiver channel that allows peaking from the stream, when dropped, it will reset to the original values.
-    pub(crate) fn new(pid: Pid, sender: ProcessSend, receiver: ProcessReceive) -> Self {
-        let (tx, rx) = flume::unbounded();
-
-        for message in receiver.drain() {
-            tx.send(message).unwrap();
-        }
-
+impl<T> ProcessReceiver<T>
+where
+    T: Receivable,
+{
+    /// Constructs a new instance of [ProcessReceiver].
+    pub(crate) fn new() -> Self {
         Self {
-            pid,
-            current_send: Some(sender),
-            peak_send: tx,
-            peak_receiver: Some(rx),
+            ignore_type: false,
+            _phantom: PhantomData,
         }
     }
 
-    /// Returns a copy of the current receiver's sender.
-    pub(crate) fn sender(&self) -> ProcessSend {
-        self.peak_send.clone()
+    /// Ignore messages that don't match the given type.
+    ///
+    /// By default, `receive`/`match` will panic if the type doesn't match.
+    pub fn ignore_type(mut self) -> Self {
+        self.ignore_type = true;
+        self
     }
 
-    /// Keeps this message in the process's mailbox.
-    pub fn keep<M: Into<MessageState>>(&self, message: M) {
-        self.current_send
-            .as_ref()
-            .unwrap()
-            .send(message.into())
-            .unwrap();
-    }
+    /// Selects a single message.
+    ///
+    /// This will panic if `ignore_type` was not called and the type doesn't match.
+    pub async fn select<F: (Fn(&Message<&T>) -> bool) + Send>(self, filter: F) -> Message<T> {
+        let result = PROCESS.with(|process| {
+            let mut items = process.items.borrow_mut();
+            let mut found: Option<usize> = None;
 
-    /// Receives a single message that matches the given type from the current processes mailbox or panics.
-    #[must_use]
-    pub async fn receive<T: Receivable>(&self) -> Message<T> {
-        self.peak_receiver
-            .as_ref()
-            .unwrap()
-            .recv_async()
-            .await
-            .unwrap()
-            .try_into()
-            .unwrap()
-    }
+            for (index, item) in items.iter_mut().enumerate() {
+                match process_item::<T>(item) {
+                    Ok(Some(message)) => {
+                        if filter(&message) {
+                            found = Some(index);
+                            break;
+                        }
+                    }
+                    Ok(None) => {
+                        continue;
+                    }
+                    Err(_) => {
+                        if self.ignore_type {
+                            continue;
+                        } else {
+                            panic!("Unsupported message type!")
+                        }
+                    }
+                }
+            }
 
-    /// Receives a single filtered message that matches the given type from the current processes mailbox.
-    #[must_use]
-    pub async fn filter_receive<T: Receivable>(&self) -> Message<T> {
+            if let Some(found) = found {
+                return Some(convert_item::<T>(items.remove(found)));
+            }
+
+            None
+        });
+
+        if let Some(message) = result {
+            return message;
+        }
+
+        let receiver = PROCESS.with(|process| process.receiver.clone());
+
         loop {
-            let message = self
-                .peak_receiver
-                .as_ref()
-                .unwrap()
-                .recv_async()
-                .await
-                .unwrap();
+            let mut item = receiver.recv_async().await.unwrap();
 
-            match message.try_into() {
-                Ok(message) => return message,
-                Err(message) => self.current_send.as_ref().unwrap().send(message).unwrap(),
+            match process_item::<T>(&mut item) {
+                Ok(Some(message)) => {
+                    if filter(&message) {
+                        return convert_item::<T>(item);
+                    }
+
+                    PROCESS.with(|process| process.items.borrow_mut().push(item));
+                }
+                Ok(None) => {
+                    continue;
+                }
+                Err(_) => {
+                    if self.ignore_type {
+                        PROCESS.with(|process| process.items.borrow_mut().push(item));
+                        continue;
+                    } else {
+                        panic!("Unsupported message type!")
+                    }
+                }
             }
         }
     }
+
+    /// Receives a single message.
+    ///
+    /// This will panic if `ignore_type` was not called and the type doesn't match.
+    pub async fn receive(self) -> Message<T> {
+        self.select(|_| true).await
+    }
 }
 
-impl Drop for ProcessReceiver {
-    fn drop(&mut self) {
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-        let sender = self.current_send.take().unwrap();
+/// Converts a processed item into a message.
+#[inline(always)]
+fn convert_item<T: Receivable>(item: ProcessItem) -> Message<T> {
+    match item {
+        // If we got here, the deserialization has already taken place.
+        ProcessItem::UserRemoteMessage(_) => unreachable!(),
+        ProcessItem::UserLocalMessage(deserialized) => {
+            deserialized.downcast().map(|x| Message::User(*x)).unwrap()
+        }
+        ProcessItem::SystemMessage(system) => Message::System(system),
+        // Handled during item processing.
+        ProcessItem::AliasDeactivated(_) => unreachable!(),
+    }
+}
 
-        for message in self.peak_receiver.take().unwrap().drain() {
-            sender.send(message).unwrap();
+/// Processes a process item, which could be a command, or a message, or anything.
+#[inline(always)]
+fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<&T>>, ()> {
+    // Special case for serialized messages, we'll convert them to deserialized one time to prevent
+    // deserializing the value more than once, then convert to a reference.
+    if let ProcessItem::UserRemoteMessage(serialized) = item {
+        #[cfg(feature = "json")]
+        {
+            let result: Result<T, _> = serde_json::from_slice(serialized);
+
+            if let Ok(result) = result {
+                *item = ProcessItem::UserLocalMessage(Box::new(result));
+            } else {
+                return Err(());
+            }
         }
 
-        registry.processes.get_mut(&self.pid.id()).unwrap().channel = sender;
+        #[cfg(not(any(feature = "json")))]
+        unimplemented!()
+    }
+
+    match item {
+        // Explicitly handled first, so that we can process the other values later.
+        ProcessItem::UserRemoteMessage(_) => unreachable!(),
+        ProcessItem::UserLocalMessage(deserialized) => deserialized
+            .downcast_ref()
+            .map(Message::User)
+            .ok_or(())
+            .map(Some),
+        ProcessItem::SystemMessage(system) => Ok(Some(Message::System(system.clone()))),
+        ProcessItem::AliasDeactivated(id) => {
+            PROCESS.with(|process| process.aliases.borrow_mut().remove(id));
+            Ok(None)
+        }
     }
 }

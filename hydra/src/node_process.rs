@@ -64,10 +64,10 @@ async fn remote_node_handshake(
     let hello = Hello::new(info.name.clone(), info.options.broadcast_address);
 
     // Send our hello packet to inform the other end of who we're identifying as.
-    writer.send(hello.into()).await.unwrap();
+    writer.send(hello.into()).await.ok()?;
 
     // Wait for the remote node's hello packet, which must be the first packet sent.
-    if let Frame::Hello(hello) = reader.next().await.unwrap().unwrap() {
+    if let Frame::Hello(hello) = reader.next().await?.ok()? {
         if !hello.validate() {
             return None;
         } else {
@@ -114,7 +114,7 @@ pub async fn start_local_node(name: String, options: NodeOptions) {
     let listener = Process::spawn_link(local_node_process(info.clone()));
 
     loop {
-        let message: Message<i32> = Process::receive().await;
+        let message: Message<i32> = Process::receiver().receive().await;
 
         match message {
             Message::User(_) => {
