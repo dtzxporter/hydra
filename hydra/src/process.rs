@@ -147,10 +147,18 @@ impl Process {
         }
     }
 
-    /// Creates a receiver for a single message that matches the given type from the current processes mailbox.
+    /// Creates a receiver with optional filtering for a single message from the current processes mailbox.
     #[must_use]
-    pub fn receiver<T: Receivable>() -> ProcessReceiver<T> {
+    pub fn receiver() -> ProcessReceiver {
         ProcessReceiver::new()
+    }
+
+    /// Creates a receiver for a single message that matches the given type from the current processes mailbox.
+    ///
+    /// This will panic if a message is received that doesn't match the given type.
+    #[must_use]
+    pub async fn receive<T: Receivable>() -> Message<T> {
+        ProcessReceiver::new().receive().await
     }
 
     /// Spawns the given `function` as a process and returns it's [Pid].

@@ -52,9 +52,9 @@ pub trait GenServer: Sized + Send + 'static {
             GenServerMessage::Call(Process::current(), monitor, message),
         );
 
-        let _receiver = Process::receiver::<GenServerMessage<Self::Message>>()
+        let _receiver = Process::receiver()
             .ignore_type()
-            .select(|message| {
+            .select::<GenServerMessage<Self::Message>, _>(|message| {
                 // Do this
                 if let Message::User(GenServerMessage::CallReply(mref, _)) = message {
                     if *mref == monitor {
@@ -157,9 +157,7 @@ async fn start_internal<T: GenServer + Send + 'static>(
         let _ = tx.send(());
 
         loop {
-            let message = Process::receiver::<GenServerMessage<T::Message>>()
-                .receive()
-                .await;
+            let message: Message<GenServerMessage<T::Message>> = Process::receive().await;
 
             match message {
                 Message::User(GenServerMessage::Cast(from, cast)) => {

@@ -81,7 +81,7 @@ async fn main() {
         //println!("Got call result:   {:?}", start.elapsed() / 100);
 
         loop {
-            let recv = Process::receiver::<MyMessage>().receive().await;
+            let recv: Message<MyMessage> = Process::receive().await;
 
             match recv {
                 Message::User(MyMessage::Hello(string)) => {

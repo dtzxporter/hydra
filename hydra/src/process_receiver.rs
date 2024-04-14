@@ -1,26 +1,17 @@
-use std::marker::PhantomData;
-
 use crate::Message;
 use crate::ProcessItem;
 use crate::Receivable;
 use crate::PROCESS;
 
 /// Used to receive messages from processes.
-pub struct ProcessReceiver<T: Receivable> {
+pub struct ProcessReceiver {
     ignore_type: bool,
-    _phantom: PhantomData<T>,
 }
 
-impl<T> ProcessReceiver<T>
-where
-    T: Receivable,
-{
+impl ProcessReceiver {
     /// Constructs a new instance of [ProcessReceiver].
     pub(crate) fn new() -> Self {
-        Self {
-            ignore_type: false,
-            _phantom: PhantomData,
-        }
+        Self { ignore_type: false }
     }
 
     /// Ignore messages that don't match the given type.
@@ -34,7 +25,10 @@ where
     /// Selects a single message.
     ///
     /// This will panic if `ignore_type` was not called and the type doesn't match.
-    pub async fn select<F: (Fn(&Message<&T>) -> bool) + Send>(self, filter: F) -> Message<T> {
+    pub async fn select<T: Receivable, F: (Fn(&Message<&T>) -> bool) + Send>(
+        self,
+        filter: F,
+    ) -> Message<T> {
         let result = PROCESS.with(|process| {
             let mut items = process.items.borrow_mut();
             let mut found: Option<usize> = None;
@@ -102,7 +96,7 @@ where
     /// Receives a single message.
     ///
     /// This will panic if `ignore_type` was not called and the type doesn't match.
-    pub async fn receive(self) -> Message<T> {
+    pub async fn receive<T: Receivable>(self) -> Message<T> {
         self.select(|_| true).await
     }
 }
