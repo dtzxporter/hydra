@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 /// Represents the reason a process exits.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExitReason {
     /// Process exited due to normal reasons, function ended, or manually stopped.
     Normal,
@@ -38,5 +38,23 @@ impl From<String> for ExitReason {
 impl From<&str> for ExitReason {
     fn from(value: &str) -> Self {
         Self::Custom(value.to_string())
+    }
+}
+
+impl PartialEq<&str> for ExitReason {
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            Self::Custom(reason) => reason == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<ExitReason> for &str {
+    fn eq(&self, other: &ExitReason) -> bool {
+        match other {
+            ExitReason::Custom(reason) => self == reason,
+            _ => false,
+        }
     }
 }

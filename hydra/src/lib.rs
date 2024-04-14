@@ -3,6 +3,7 @@ mod catch_unwind;
 mod dest;
 mod exit_reason;
 mod frame;
+mod link;
 mod local;
 mod message;
 mod monitor;
@@ -43,6 +44,7 @@ pub use hydra_macros::test;
 
 pub(crate) use alias::*;
 pub(crate) use catch_unwind::*;
+pub(crate) use link::*;
 pub(crate) use node_process::*;
 pub(crate) use node_registration::*;
 pub(crate) use node_registry::*;

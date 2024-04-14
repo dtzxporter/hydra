@@ -1,11 +1,9 @@
-use std::collections::BTreeSet;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
 use tokio::task::JoinHandle;
 
 use crate::ExitReason;
-use crate::Pid;
 use crate::ProcessFlags;
 use crate::ProcessSend;
 
@@ -17,8 +15,6 @@ pub struct ProcessRegistration {
     pub sender: ProcessSend,
     /// Registered name of this process or [None] when unregistered.
     pub name: Option<String>,
-    /// A collection of linked processes.
-    pub links: BTreeSet<Pid>,
     /// Process flags.
     pub flags: AtomicU32,
     /// Process exit reason.
@@ -32,7 +28,6 @@ impl ProcessRegistration {
             handle,
             sender,
             name: None,
-            links: BTreeSet::new(),
             flags: AtomicU32::new(ProcessFlags::empty().bits()),
             exit_reason: ExitReason::Normal,
         }

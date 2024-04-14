@@ -13,6 +13,9 @@ use crate::alias_create;
 use crate::alias_destroy;
 use crate::alias_destroy_all;
 use crate::alias_retrieve;
+use crate::link_create;
+use crate::link_destroy;
+use crate::link_process_down;
 use crate::monitor_create;
 use crate::monitor_destroy;
 use crate::monitor_destroy_all;
@@ -301,19 +304,8 @@ impl Process {
             unimplemented!("Remote process link unsupported!");
         }
 
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-
-        if let Some(process) = registry.processes.get_mut(&pid.id()) {
-            process.links.insert(current);
-
-            registry
-                .processes
-                .get_mut(&current.id())
-                .map(|x| x.links.insert(pid));
-        } else {
-            drop(registry);
-            panic!("Process was not an existing process!")
-        }
+        link_create(pid, current);
+        link_create(current, pid);
     }
 
     /// Removes the link between the calling process and the given process.
@@ -328,17 +320,8 @@ impl Process {
             unimplemented!("Remote process link unsupported!");
         }
 
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-
-        registry
-            .processes
-            .get_mut(&current.id())
-            .map(|x| x.links.remove(&pid));
-
-        registry
-            .processes
-            .get_mut(&pid.id())
-            .map(|x| x.links.remove(&current));
+        link_destroy(pid, current);
+        link_destroy(current, pid);
     }
 
     /// Starts monitoring the given process from the calling process. If the process is already dead a message is sent immediately.
@@ -418,15 +401,9 @@ impl Drop for Process {
             registry.named_processes.remove(&name);
         }
 
-        for link in process.links {
-            if link.is_remote() {
-                unimplemented!("Remote process link unsupported!");
-            }
-
-            registry.exit_signal_linked_process(link, self.pid, process.exit_reason.clone());
-        }
-
         drop(registry);
+
+        link_process_down(self.pid, process.exit_reason.clone());
 
         monitor_process_down(self.pid, process.exit_reason);
         monitor_destroy_all(self.monitors.borrow().iter());
@@ -482,6 +459,14 @@ where
 
     let mut result = SpawnResult::Pid(pid);
 
+    // If a link was requested, insert it before spawning the process.
+    if link {
+        let current = Process::current();
+
+        link_create(pid, current);
+        link_create(current, pid);
+    }
+
     // If a monitor was requested, insert it before spawning the process.
     if monitor {
         let monitor = Reference::new();
@@ -507,21 +492,10 @@ where
         }
     }));
 
-    let mut registration = ProcessRegistration::new(handle, tx);
-
-    // If a link was requested insert it before closing the lock.
-    if link {
-        let current = Process::current();
-
-        registration.links.insert(current);
-
-        registry
-            .processes
-            .get_mut(&current.id())
-            .map(|process| process.links.insert(pid));
-    }
-
-    registry.processes.insert(next_id, registration);
+    // Register the process under it's new id.
+    registry
+        .processes
+        .insert(next_id, ProcessRegistration::new(handle, tx));
 
     result
 }
