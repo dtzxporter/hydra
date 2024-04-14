@@ -342,41 +342,70 @@ impl Process {
     }
 
     /// Starts monitoring the given [Pid] from the calling process. If the [Pid] is already dead a message is sent immediately.
-    pub fn monitor<T: Into<Dest>>(dest: T) -> Reference {
+    pub fn monitor<T: Into<Dest>>(process: T) -> Reference {
         let current = Self::current();
-        let dest = dest.into();
-
-        let Dest::Pid(pid) = dest else {
-            unimplemented!("Dest monitor not supported!")
-        };
-
-        if pid == current {
-            panic!("Can not monitor yourself!");
-        }
-
-        if pid.is_remote() {
-            unimplemented!("Remote process monitor unsupported!");
-        }
+        let process = process.into();
 
         let reference = Reference::new();
 
-        PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, pid));
+        match process {
+            Dest::Pid(pid) => {
+                if pid == current {
+                    panic!("Can not monitor yourself!");
+                }
 
-        let registry = PROCESS_REGISTRY.read().unwrap();
+                if pid.is_remote() {
+                    unimplemented!("Remote process monitor unsupported!");
+                }
 
-        if registry.processes.contains_key(&pid.id()) {
-            monitor_create(pid, reference, current);
-        } else {
-            PROCESS.with(|process| {
-                process
-                    .sender
-                    .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
-                        pid,
-                        reference,
-                        "noproc".into(),
-                    )))
-                    .unwrap()
-            });
+                PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, pid));
+
+                let registry = PROCESS_REGISTRY.read().unwrap();
+
+                if registry.processes.contains_key(&pid.id()) {
+                    monitor_create(pid, reference, current);
+                } else {
+                    PROCESS.with(|process| {
+                        process
+                            .sender
+                            .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
+                                pid,
+                                reference,
+                                "noproc".into(),
+                            )))
+                            .unwrap()
+                    });
+                }
+            }
+            Dest::Named(name) => {
+                let registry = PROCESS_REGISTRY.read().unwrap();
+
+                let Some(process) = registry.named_processes.get(name.as_ref()) else {
+                    // TODO: Need to send ProcessDown here because it doesn't exist.
+                    return reference;
+                };
+
+                let pid = Pid::local(*process);
+
+                PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, pid));
+
+                if registry.processes.contains_key(process) {
+                    monitor_create(pid, reference, current);
+                } else {
+                    PROCESS.with(|process| {
+                        process
+                            .sender
+                            .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
+                                pid,
+                                reference,
+                                "noproc".into(),
+                            )))
+                            .unwrap()
+                    });
+                }
+            }
+            Dest::Alias(_) => unimplemented!("Alias monitor not supported!"),
+            Dest::RemoteNamed(_, _) => unimplemented!("Remote monitor not supported!"),
         }
 
         reference

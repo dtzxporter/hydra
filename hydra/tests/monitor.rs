@@ -34,6 +34,31 @@ async fn monitor_works() {
 }
 
 #[tokio::test]
+async fn monitor_named_works() {
+    common::hydra_test(async {
+        let pid = Process::spawn(async {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            panic!("we're going down!");
+        });
+
+        Process::register(pid, "monitor_me");
+
+        let reference = Process::monitor("monitor_me");
+
+        let message: Message<()> = Process::receive().await;
+
+        if let Message::System(SystemMessage::ProcessDown(from, mref, exit_reason)) = message {
+            assert!(from == pid);
+            assert!(reference == mref);
+            assert!(matches!(exit_reason, ExitReason::Custom(_)));
+        } else {
+            panic!("Expected process down message!");
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn demonitor_works() {
     common::hydra_test(async {
         let is_down: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));

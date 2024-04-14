@@ -45,3 +45,9 @@ impl From<(&'static str, &str)> for Dest {
         Self::RemoteNamed(value.0.into(), value.1.to_string())
     }
 }
+
+impl From<Reference> for Dest {
+    fn from(value: Reference) -> Self {
+        Self::Alias(value)
+    }
+}
