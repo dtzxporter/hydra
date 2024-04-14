@@ -1,6 +1,9 @@
 use std::fmt::Debug;
 
+use crate::Dest;
+use crate::ExitReason;
 use crate::Message;
+use crate::Reference;
 use crate::SystemMessage;
 
 pub enum ProcessItem {
@@ -11,6 +14,8 @@ pub enum ProcessItem {
     UserLocalMessage(Box<dyn std::any::Any + Send>),
     /// Sent from the system.
     SystemMessage(SystemMessage),
+    /// Sent from a monitor when a process goes down.
+    MonitorProcessDown(Dest, Reference, ExitReason),
     /// Sent from the system when an alias is deactivated externally.
     AliasDeactivated(u64),
 }
@@ -39,6 +44,11 @@ impl Debug for ProcessItem {
             Self::UserRemoteMessage(_) => write!(f, "UserRemoteMessage(..)"),
             Self::UserLocalMessage(_) => write!(f, "UserLocalMessage(..)"),
             Self::SystemMessage(system) => write!(f, "SystemMessage({:?})", system),
+            Self::MonitorProcessDown(dest, reference, exit_reason) => write!(
+                f,
+                "MonitorProcessDown({:?}, {:?}, {:?})",
+                dest, reference, exit_reason
+            ),
             Self::AliasDeactivated(alias) => write!(f, "AliasDeactivated({:?})", alias),
         }
     }

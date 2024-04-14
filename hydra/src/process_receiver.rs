@@ -113,6 +113,7 @@ fn convert_item<T: Receivable>(item: ProcessItem) -> Message<T> {
         }
         ProcessItem::SystemMessage(system) => Message::System(system),
         // Handled during item processing.
+        ProcessItem::MonitorProcessDown(_, _, _) => unreachable!(),
         ProcessItem::AliasDeactivated(_) => unreachable!(),
     }
 }
@@ -149,24 +150,20 @@ fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<
             .map(Message::User)
             .ok_or(())
             .map(Some),
-        ProcessItem::SystemMessage(system) => {
-            // Special logic for certain system messages.
-            match system {
-                SystemMessage::ProcessDown(_, reference, _) => {
-                    if PROCESS
-                        .with(|process| process.monitors.borrow_mut().remove(reference).is_none())
-                    {
-                        // If the process has already called demonitor, discard the message.
-                        // This prevents the need for a flush option.
-                        return Ok(None);
-                    }
-                }
-                _ => {
-                    // No special handling.
-                }
+        ProcessItem::SystemMessage(system) => Ok(Some(Message::System(system.clone()))),
+        ProcessItem::MonitorProcessDown(dest, reference, exit_reason) => {
+            if PROCESS.with(|process| process.monitors.borrow_mut().remove(reference).is_none()) {
+                // If the process has already called demonitor, discard the message.
+                // This prevents the need for a flush option.
+                return Ok(None);
             }
 
-            Ok(Some(Message::System(system.clone())))
+            let system = SystemMessage::ProcessDown(dest.clone(), *reference, exit_reason.clone());
+
+            // Make sure processing only happens one time.
+            *item = ProcessItem::SystemMessage(system.clone());
+
+            Ok(Some(Message::System(system)))
         }
         ProcessItem::AliasDeactivated(id) => {
             PROCESS.with(|process| process.aliases.borrow_mut().remove(id));

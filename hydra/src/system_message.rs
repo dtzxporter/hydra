@@ -1,3 +1,4 @@
+use crate::Dest;
 use crate::ExitReason;
 use crate::Pid;
 use crate::Reference;
@@ -8,5 +9,5 @@ pub enum SystemMessage {
     /// A process has exited with the given reason.
     Exit(Pid, ExitReason),
     /// A monitored process went down.
-    ProcessDown(Pid, Reference, ExitReason),
+    ProcessDown(Dest, Reference, ExitReason),
 }

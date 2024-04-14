@@ -22,8 +22,8 @@ async fn monitor_works() {
 
         let message: Message<()> = Process::receive().await;
 
-        if let Message::System(SystemMessage::ProcessDown(from, mref, exit_reason)) = message {
-            assert!(from == pid);
+        if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message {
+            assert!(object == pid);
             assert!(reference == mref);
             assert!(matches!(exit_reason, ExitReason::Custom(_)));
         } else {
@@ -47,8 +47,8 @@ async fn monitor_named_works() {
 
         let message: Message<()> = Process::receive().await;
 
-        if let Message::System(SystemMessage::ProcessDown(from, mref, exit_reason)) = message {
-            assert!(from == pid);
+        if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message {
+            assert!(object == "monitor_me");
             assert!(reference == mref);
             assert!(matches!(exit_reason, ExitReason::Custom(_)));
         } else {
