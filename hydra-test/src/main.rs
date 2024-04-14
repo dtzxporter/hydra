@@ -1,4 +1,3 @@
-use std::time::Duration;
 use std::time::Instant;
 
 use serde::Deserialize;
@@ -51,70 +50,66 @@ impl GenServer for MyServer {
     }
 }
 
-#[tokio::main]
+#[hydra::main]
 async fn main() {
-    Process::spawn(async move {
-        // This will prevent our death pact from killing us.
-        Process::set_flags(ProcessFlags::TRAP_EXIT);
+    // This will prevent our death pact from killing us.
+    Process::set_flags(ProcessFlags::TRAP_EXIT);
 
-        let us = Process::current();
+    let us = Process::current();
 
-        println!("Process: {:?} running...", us);
+    println!("Process: {:?} running...", us);
 
-        // Links this process to the parent, a (death pact).
-        Process::spawn_link(async move {
-            panic!("We're going down: {:?}!", Process::current());
-        });
-
-        // Remove the monitor before we crash so we get nothing.
-
-        // Send it.
-        Process::send(us, MyMessage::Hello("wins".into()));
-
-        // let pid = MyServer.start_link((), GenServerOptions::new()).await;
-
-        //MyServer::cast(pid, MyMessage::Hello(String::from("yay")));
-
-        //let start = std::time::Instant::now();
-        //let _ = MyServer::call(pid, MyMessage::Call(20)).await;
-
-        //println!("Got call result:   {:?}", start.elapsed() / 100);
-
-        loop {
-            let recv: Message<MyMessage> = Process::receive().await;
-
-            match recv {
-                Message::User(MyMessage::Hello(string)) => {
-                    println!("Got message: {:?}", string);
-                }
-                Message::User(MyMessage::Bye(bye, instant)) => {
-                    println!("Got bye: {:?} {:?}", bye, instant.elapsed());
-                }
-                Message::User(_) => {
-                    unimplemented!()
-                }
-                Message::System(SystemMessage::Exit(from, exit_reason)) => {
-                    println!("Got exit signal from: {:?} reason: {:?}", from, exit_reason);
-
-                    Process::send(
-                        us,
-                        MyMessage::Bye("wins".as_bytes().to_vec(), Local::new(Instant::now())),
-                    );
-                }
-                Message::System(SystemMessage::ProcessDown(from, monitor, exit_reason)) => {
-                    println!(
-                        "Got process down from: {:?} monitor: {:?} reason: {:?}",
-                        from, monitor, exit_reason
-                    );
-
-                    Process::send(
-                        us,
-                        MyMessage::Bye("wins".as_bytes().to_vec(), Local::new(Instant::now())),
-                    );
-                }
-            }
-        }
+    // Links this process to the parent, a (death pact).
+    Process::spawn_link(async move {
+        panic!("We're going down: {:?}!", Process::current());
     });
 
-    tokio::time::sleep(Duration::from_secs(20)).await;
+    // Remove the monitor before we crash so we get nothing.
+
+    // Send it.
+    Process::send(us, MyMessage::Hello("wins".into()));
+
+    // let pid = MyServer.start_link((), GenServerOptions::new()).await;
+
+    //MyServer::cast(pid, MyMessage::Hello(String::from("yay")));
+
+    //let start = std::time::Instant::now();
+    //let _ = MyServer::call(pid, MyMessage::Call(20)).await;
+
+    //println!("Got call result:   {:?}", start.elapsed() / 100);
+
+    loop {
+        let recv: Message<MyMessage> = Process::receive().await;
+
+        match recv {
+            Message::User(MyMessage::Hello(string)) => {
+                println!("Got message: {:?}", string);
+            }
+            Message::User(MyMessage::Bye(bye, instant)) => {
+                println!("Got bye: {:?} {:?}", bye, instant.elapsed());
+            }
+            Message::User(_) => {
+                unimplemented!()
+            }
+            Message::System(SystemMessage::Exit(from, exit_reason)) => {
+                println!("Got exit signal from: {:?} reason: {:?}", from, exit_reason);
+
+                Process::send(
+                    us,
+                    MyMessage::Bye("wins".as_bytes().to_vec(), Local::new(Instant::now())),
+                );
+            }
+            Message::System(SystemMessage::ProcessDown(from, monitor, exit_reason)) => {
+                println!(
+                    "Got process down from: {:?} monitor: {:?} reason: {:?}",
+                    from, monitor, exit_reason
+                );
+
+                Process::send(
+                    us,
+                    MyMessage::Bye("wins".as_bytes().to_vec(), Local::new(Instant::now())),
+                );
+            }
+        }
+    }
 }

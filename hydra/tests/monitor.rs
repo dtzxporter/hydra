@@ -3,104 +3,90 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
-mod common;
-
 use hydra::ExitReason;
 use hydra::Message;
 use hydra::Process;
 use hydra::SystemMessage;
 
-#[tokio::test]
+#[hydra::test]
 async fn monitor_works() {
-    common::hydra_test(async {
-        let pid = Process::spawn(async {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            panic!("we're going down!");
-        });
+    let pid = Process::spawn(async {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        panic!("we're going down!");
+    });
 
-        let reference = Process::monitor(pid);
+    let reference = Process::monitor(pid);
 
-        let message: Message<()> = Process::receive().await;
+    let message: Message<()> = Process::receive().await;
 
-        if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message {
-            assert!(object == pid);
-            assert!(reference == mref);
-            assert!(matches!(exit_reason, ExitReason::Custom(_)));
-        } else {
-            panic!("Expected process down message!");
-        }
-    })
-    .await;
+    if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message {
+        assert!(object == pid);
+        assert!(reference == mref);
+        assert!(matches!(exit_reason, ExitReason::Custom(_)));
+    } else {
+        panic!("Expected process down message!");
+    }
 }
 
-#[tokio::test]
+#[hydra::test]
 async fn monitor_named_works() {
-    common::hydra_test(async {
-        let pid = Process::spawn(async {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            panic!("we're going down!");
-        });
+    let pid = Process::spawn(async {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        panic!("we're going down!");
+    });
 
-        Process::register(pid, "monitor_me");
+    Process::register(pid, "monitor_me");
 
-        let reference = Process::monitor("monitor_me");
+    let reference = Process::monitor("monitor_me");
 
-        let message: Message<()> = Process::receive().await;
+    let message: Message<()> = Process::receive().await;
 
-        if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message {
-            assert!(object == "monitor_me");
-            assert!(reference == mref);
-            assert!(matches!(exit_reason, ExitReason::Custom(_)));
-        } else {
-            panic!("Expected process down message!");
-        }
-    })
-    .await;
+    if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message {
+        assert!(object == "monitor_me");
+        assert!(reference == mref);
+        assert!(matches!(exit_reason, ExitReason::Custom(_)));
+    } else {
+        panic!("Expected process down message!");
+    }
 }
 
-#[tokio::test]
+#[hydra::test]
 async fn demonitor_works() {
-    common::hydra_test(async {
-        let is_down: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-        let is_down_ref = is_down.clone();
+    let is_down: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let is_down_ref = is_down.clone();
 
-        let (_, monitor) = Process::spawn_monitor(async move {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            is_down_ref.store(true, Ordering::Relaxed);
-            panic!("we're going down!");
-        });
+    let (_, monitor) = Process::spawn_monitor(async move {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        is_down_ref.store(true, Ordering::Relaxed);
+        panic!("we're going down!");
+    });
 
-        Process::demonitor(monitor);
+    Process::demonitor(monitor);
 
-        tokio::time::sleep(Duration::from_millis(75)).await;
+    tokio::time::sleep(Duration::from_millis(75)).await;
 
-        assert!(is_down.load(Ordering::Relaxed));
+    assert!(is_down.load(Ordering::Relaxed));
 
-        Process::send(Process::current(), ());
+    Process::send(Process::current(), ());
 
-        let message: Message<()> = Process::receive().await;
+    let message: Message<()> = Process::receive().await;
 
-        assert!(matches!(message, Message::User(())));
-    })
-    .await;
+    assert!(matches!(message, Message::User(())));
 }
 
-#[tokio::test]
+#[hydra::test]
 async fn spawn_monitor_works() {
-    common::hydra_test(async {
-        let (pid, reference) = Process::spawn_monitor(async {
-            panic!("we're going down!");
-        });
+    let (pid, reference) = Process::spawn_monitor(async {
+        panic!("we're going down!");
+    });
 
-        let message: Message<()> = Process::receive().await;
+    let message: Message<()> = Process::receive().await;
 
-        if let Message::System(SystemMessage::ProcessDown(from, mref, exit_reason)) = message {
-            assert!(from == pid);
-            assert!(reference == mref);
-            assert!(matches!(exit_reason, ExitReason::Custom(_)));
-        } else {
-            panic!("Expected process down message!");
-        }
-    })
-    .await;
+    if let Message::System(SystemMessage::ProcessDown(from, mref, exit_reason)) = message {
+        assert!(from == pid);
+        assert!(reference == mref);
+        assert!(matches!(exit_reason, ExitReason::Custom(_)));
+    } else {
+        panic!("Expected process down message!");
+    }
 }

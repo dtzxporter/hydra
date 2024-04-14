@@ -1,5 +1,5 @@
 [workspace]
-members = ["hydra", "hydra-platform", "hydra-test"]
+members = ["hydra", "hydra-macros", "hydra-platform", "hydra-test"]
 resolver = "2"
 
 
@@ -18,3 +18,5 @@ serde_json = { version = "1.0", default-features = false, features = ["std"] }
 tokio = { version = "1.0", default-features = false, features = ["rt", "rt-multi-thread", "net", "sync", "time", "macros"] }
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
+
+hydra-macros = { path = "./hydra-macros" }

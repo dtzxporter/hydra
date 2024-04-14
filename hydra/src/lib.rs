@@ -37,6 +37,10 @@ pub use receivable::*;
 pub use reference::*;
 pub use system_message::*;
 
+#[cfg(not(test))]
+pub use hydra_macros::main;
+pub use hydra_macros::test;
+
 pub(crate) use alias::*;
 pub(crate) use catch_unwind::*;
 pub(crate) use node_process::*;

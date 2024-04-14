@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+default = ["json", "macros"]
 json = ["dep:serde_json"]
+macros = ["dep:hydra-macros"]
 
 [dependencies]
 flume.workspace = true
@@ -20,5 +22,7 @@ serde.workspace = true
 once_cell.workspace = true
 bitflags.workspace = true
 pin-project-lite.workspace = true
+
+hydra-macros = { workspace = true, optional = true }
 
 serde_json = { workspace = true, optional = true }
