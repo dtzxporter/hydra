@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::num::NonZeroU32;
+use std::num::NonZeroU64;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -7,14 +7,14 @@ use serde::Serialize;
 /// A unique identifier of a process in hydra.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Pid {
-    Local(NonZeroU32),
-    Remote(NonZeroU32, u32),
+    Local(NonZeroU64),
+    Remote(NonZeroU64, u64),
 }
 
 impl Pid {
     /// Constructs a new [Pid] from the given process id, assigning it to the local node.
-    pub(crate) fn local(id: u32) -> Self {
-        Self::Local(NonZeroU32::new(id).unwrap())
+    pub(crate) fn local(id: u64) -> Self {
+        Self::Local(NonZeroU64::new(id).unwrap())
     }
 
     /// Returns true if this [Pid] is a local process.
@@ -28,7 +28,7 @@ impl Pid {
     }
 
     /// Gets the id part of the [Pid].
-    pub(crate) const fn id(&self) -> u32 {
+    pub(crate) const fn id(&self) -> u64 {
         match self {
             Self::Local(id) => id.get(),
             Self::Remote(id, _) => id.get(),

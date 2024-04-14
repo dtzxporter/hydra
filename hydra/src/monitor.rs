@@ -14,7 +14,7 @@ use crate::PROCESS_REGISTRY;
 
 /// A collection of the local processes being monitored, and the references that require the message.
 #[allow(clippy::type_complexity)]
-static MONITORS: Lazy<DashMap<u32, BTreeMap<Reference, (Pid, Dest)>>> = Lazy::new(DashMap::new);
+static MONITORS: Lazy<DashMap<u64, BTreeMap<Reference, (Pid, Dest)>>> = Lazy::new(DashMap::new);
 
 /// Creates a monitor for the given local process and reference from the given process.
 pub fn monitor_create(process: Pid, reference: Reference, from: Pid, dest: Dest) {

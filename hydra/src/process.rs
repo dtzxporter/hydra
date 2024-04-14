@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::AtomicU32;
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
@@ -462,7 +462,7 @@ enum SpawnResult {
 }
 
 /// The next process id to allocate if free.
-static ID: AtomicU32 = AtomicU32::new(1);
+static ID: AtomicU64 = AtomicU64::new(1);
 
 /// Internal spawn utility.
 fn spawn_internal<T>(function: T, link: bool, monitor: bool) -> SpawnResult

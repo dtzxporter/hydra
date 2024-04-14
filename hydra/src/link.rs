@@ -9,7 +9,7 @@ use crate::Pid;
 use crate::PROCESS_REGISTRY;
 
 /// A collection of local processes linked to another process.
-static LINKS: Lazy<DashMap<u32, BTreeSet<Pid>>> = Lazy::new(DashMap::new);
+static LINKS: Lazy<DashMap<u64, BTreeSet<Pid>>> = Lazy::new(DashMap::new);
 
 /// Creates a link for the given local process from the given process.
 pub fn link_create(process: Pid, from: Pid) {
