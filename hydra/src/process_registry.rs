@@ -42,7 +42,7 @@ impl ProcessRegistry {
                     process.handle.abort();
                 } else if trapping_exits {
                     process
-                        .channel
+                        .sender
                         .send(ProcessItem::SystemMessage(SystemMessage::Exit(
                             from,
                             exit_reason,
@@ -57,7 +57,7 @@ impl ProcessRegistry {
             ExitReason::Custom(_) => {
                 if trapping_exits {
                     process
-                        .channel
+                        .sender
                         .send(ProcessItem::SystemMessage(SystemMessage::Exit(
                             from,
                             exit_reason,
@@ -76,7 +76,7 @@ impl ProcessRegistry {
         if let Some(process) = self.processes.get_mut(&pid.id()) {
             if process.flags().contains(ProcessFlags::TRAP_EXIT) {
                 process
-                    .channel
+                    .sender
                     .send(ProcessItem::SystemMessage(SystemMessage::Exit(
                         from,
                         exit_reason.clone(),

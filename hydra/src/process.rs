@@ -58,7 +58,7 @@ tokio::task_local! {
 }
 
 impl Process {
-    /// Constructs a new [Process] from the given [Pid] and channel.
+    /// Constructs a new [Process] from the given [Pid] and channels.
     pub(crate) fn new(pid: Pid, sender: ProcessSend, receiver: ProcessReceive) -> Self {
         Self {
             pid,
@@ -124,7 +124,7 @@ impl Process {
                         .unwrap()
                         .processes
                         .get(&pid.id())
-                        .map(|process| process.channel.send(Message::User(message).into()));
+                        .map(|process| process.sender.send(Message::User(message).into()));
                 } else {
                     unimplemented!("Send remote pid not supported!")
                 }
@@ -136,7 +136,7 @@ impl Process {
                     .named_processes
                     .get(name.as_ref())
                     .and_then(|id| registry.processes.get(id))
-                    .map(|process| process.channel.send(Message::User(message).into()));
+                    .map(|process| process.sender.send(Message::User(message).into()));
             }
             Dest::RemoteNamed(_, _) => {
                 unimplemented!("Send remote named not supported!")

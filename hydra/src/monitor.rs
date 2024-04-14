@@ -129,7 +129,7 @@ pub fn monitor_process_down(from: Pid, exit_reason: ExitReason) {
                 .processes
                 .get(&pid.id())
                 .map(|process| {
-                    process.channel.send(ProcessItem::MonitorProcessDown(
+                    process.sender.send(ProcessItem::MonitorProcessDown(
                         dest,
                         reference,
                         exit_reason.clone(),

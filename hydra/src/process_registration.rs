@@ -13,8 +13,8 @@ use crate::ProcessSend;
 pub struct ProcessRegistration {
     /// A handle to the task that this process lives in.
     pub handle: JoinHandle<()>,
-    /// The mailbox of this process.
-    pub channel: ProcessSend,
+    /// The sender of this process.
+    pub sender: ProcessSend,
     /// Registered name of this process or [None] when unregistered.
     pub name: Option<String>,
     /// A collection of linked processes.
@@ -27,10 +27,10 @@ pub struct ProcessRegistration {
 
 impl ProcessRegistration {
     /// Constructs a new [ProcessRegistration] from a given task handle, and channel.
-    pub const fn new(handle: JoinHandle<()>, channel: ProcessSend) -> Self {
+    pub const fn new(handle: JoinHandle<()>, sender: ProcessSend) -> Self {
         Self {
             handle,
-            channel,
+            sender,
             name: None,
             links: BTreeSet::new(),
             flags: AtomicU32::new(ProcessFlags::empty().bits()),
