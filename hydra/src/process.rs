@@ -28,6 +28,7 @@ use crate::ProcessReceiver;
 use crate::ProcessRegistration;
 use crate::Receivable;
 use crate::Reference;
+use crate::SystemMessage;
 use crate::PROCESS_REGISTRY;
 
 /// The send type for a process.
@@ -357,37 +358,28 @@ impl Process {
             unimplemented!("Remote process monitor unsupported!");
         }
 
-        // let mut registry = PROCESS_REGISTRY.write().unwrap();
+        let reference = Reference::new();
 
-        // let next_monitor_id = registry
-        //     .processes
-        //     .get_mut(&current.id())
-        //     .map(|process| process.next_monitor())
-        //     .unwrap();
+        PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, pid));
 
-        // if let Some(process) = registry.processes.get_mut(&pid.id()) {
-        //     process.monitors.insert((current, next_monitor_id));
+        let registry = PROCESS_REGISTRY.read().unwrap();
 
-        //     registry
-        //         .processes
-        //         .get_mut(&current.id())
-        //         .map(|process| process.installed_monitors.insert(next_monitor_id, pid));
-        // } else {
-        //     // registry
-        //     //     .processes
-        //     //     .get(&current.id())
-        //     //     .map(|process| process.channel.clone())
-        //     //     .unwrap()
-        //     //     .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
-        //     //         pid,
-        //     //         Monitor::new(current, next_monitor_id),
-        //     //         ExitReason::Custom(String::from("noproc")),
-        //     //     )))
-        //     //     .unwrap();
-        // }
+        if registry.processes.contains_key(&pid.id()) {
+            monitor_create(pid, reference, current);
+        } else {
+            PROCESS.with(|process| {
+                process
+                    .sender
+                    .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
+                        pid,
+                        reference,
+                        "noproc".into(),
+                    )))
+                    .unwrap()
+            });
+        }
 
-        //Monitor::new(current, next_monitor_id)
-        Reference::new()
+        reference
     }
 
     /// Demonitors the monitor identifier by the given reference.
