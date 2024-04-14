@@ -5,10 +5,10 @@ use serde::Serialize;
 
 use hydra::Dest;
 use hydra::Message;
-use hydra::Monitor;
 use hydra::Pid;
 use hydra::Process;
 use hydra::Receivable;
+use hydra::Reference;
 
 use tokio::sync::oneshot;
 use tokio::time::timeout;
@@ -19,8 +19,8 @@ use crate::Reply;
 #[derive(Serialize, Deserialize)]
 pub(crate) enum GenServerMessage<T: Send + 'static> {
     Cast(Pid, T),
-    Call(Pid, Monitor, T),
-    CallReply(Monitor, T),
+    Call(Pid, Reference, T),
+    CallReply(Reference, T),
 }
 
 pub trait GenServer: Sized + Send + 'static {

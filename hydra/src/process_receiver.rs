@@ -1,6 +1,7 @@
 use crate::Message;
 use crate::ProcessItem;
 use crate::Receivable;
+use crate::SystemMessage;
 use crate::PROCESS;
 
 /// Used to receive messages from processes.
@@ -145,7 +146,25 @@ fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<
             .map(Message::User)
             .ok_or(())
             .map(Some),
-        ProcessItem::SystemMessage(system) => Ok(Some(Message::System(system.clone()))),
+        ProcessItem::SystemMessage(system) => {
+            // Special logic for certain system messages.
+            match system {
+                SystemMessage::ProcessDown(_, reference, _) => {
+                    if PROCESS
+                        .with(|process| process.monitors.borrow_mut().remove(reference).is_none())
+                    {
+                        // If the process has already called demonitor, discard the message.
+                        // This prevents the need for a flush option.
+                        return Ok(None);
+                    }
+                }
+                _ => {
+                    // No special handling.
+                }
+            }
+
+            Ok(Some(Message::System(system.clone())))
+        }
         ProcessItem::AliasDeactivated(id) => {
             PROCESS.with(|process| process.aliases.borrow_mut().remove(id));
             Ok(None)

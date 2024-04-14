@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
@@ -20,12 +19,6 @@ pub struct ProcessRegistration {
     pub name: Option<String>,
     /// A collection of linked processes.
     pub links: BTreeSet<Pid>,
-    /// A collection of monitors for our process.
-    pub monitors: BTreeSet<(Pid, u64)>,
-    /// A collection of installed monitors.
-    pub installed_monitors: BTreeMap<u64, Pid>,
-    /// The next monitor id.
-    pub next_monitor_id: u64,
     /// Process flags.
     pub flags: AtomicU32,
     /// Process exit reason.
@@ -40,30 +33,9 @@ impl ProcessRegistration {
             channel,
             name: None,
             links: BTreeSet::new(),
-            monitors: BTreeSet::new(),
-            installed_monitors: BTreeMap::new(),
-            next_monitor_id: 0,
             flags: AtomicU32::new(ProcessFlags::empty().bits()),
             exit_reason: ExitReason::Normal,
         }
-    }
-
-    /// Returns the next monitor id for this process.
-    pub fn next_monitor(&mut self) -> u64 {
-        let mut next = self.next_monitor_id.wrapping_add(1);
-
-        loop {
-            if self.installed_monitors.contains_key(&next) {
-                next = self.next_monitor_id.wrapping_add(1);
-                continue;
-            }
-
-            break;
-        }
-
-        self.next_monitor_id = next;
-
-        next
     }
 
     /// Gets the current process flags.

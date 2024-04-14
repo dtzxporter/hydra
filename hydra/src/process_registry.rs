@@ -4,7 +4,6 @@ use std::sync::RwLock;
 use once_cell::sync::Lazy;
 
 use crate::ExitReason;
-use crate::Monitor;
 use crate::Pid;
 use crate::ProcessFlags;
 use crate::ProcessItem;
@@ -87,35 +86,6 @@ impl ProcessRegistry {
                 process.exit_reason = exit_reason;
                 process.handle.abort();
             }
-        }
-    }
-
-    /// Forwards an exit signal as a monitor message to the linked [Pid] from the given [Pid] with the `exit_reason`.
-    pub fn exit_signal_monitored_process(
-        &mut self,
-        pid: Pid,
-        monitor_id: u64,
-        from: Pid,
-        exit_reason: ExitReason,
-    ) {
-        if let Some(process) = self.processes.get_mut(&pid.id()) {
-            if process.installed_monitors.remove(&monitor_id).is_some() {
-                process
-                    .channel
-                    .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
-                        from,
-                        Monitor::new(pid, monitor_id),
-                        exit_reason,
-                    )))
-                    .unwrap();
-            }
-        }
-    }
-
-    /// Removes a process monitor from the given [Pid] for the installed [Pid] and given monitor id.
-    pub fn uninstall_monitored_process(&mut self, pid: Pid, monitor_id: u64, installed: Pid) {
-        if let Some(process) = self.processes.get_mut(&pid.id()) {
-            process.monitors.remove(&(installed, monitor_id));
         }
     }
 }

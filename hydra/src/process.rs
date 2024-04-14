@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
@@ -8,15 +9,18 @@ use std::sync::atomic::Ordering;
 use flume::Receiver;
 use flume::Sender;
 
-use crate::create_alias;
-use crate::destroy_alias;
-use crate::destroy_aliases;
-use crate::retrieve_alias;
+use crate::alias_create;
+use crate::alias_destroy;
+use crate::alias_destroy_all;
+use crate::alias_retrieve;
+use crate::monitor_create;
+use crate::monitor_destroy;
+use crate::monitor_destroy_all;
+use crate::monitor_process_down;
 use crate::CatchUnwind;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Message;
-use crate::Monitor;
 use crate::Pid;
 use crate::ProcessFlags;
 use crate::ProcessItem;
@@ -24,7 +28,6 @@ use crate::ProcessReceiver;
 use crate::ProcessRegistration;
 use crate::Receivable;
 use crate::Reference;
-use crate::SystemMessage;
 use crate::PROCESS_REGISTRY;
 
 /// The send type for a process.
@@ -45,8 +48,7 @@ pub struct Process {
     /// A collection of process aliases.
     pub(crate) aliases: RefCell<BTreeSet<u64>>,
     /// A collection of process monitor references.
-    #[allow(unused)]
-    pub(crate) monitors: RefCell<BTreeSet<u64>>,
+    pub(crate) monitors: RefCell<BTreeMap<Reference, Pid>>,
 }
 
 tokio::task_local! {
@@ -63,7 +65,7 @@ impl Process {
             receiver,
             items: RefCell::new(Vec::new()),
             aliases: RefCell::new(BTreeSet::new()),
-            monitors: RefCell::new(BTreeSet::new()),
+            monitors: RefCell::new(BTreeMap::new()),
         }
     }
 
@@ -78,7 +80,7 @@ impl Process {
             process.sender.clone()
         });
 
-        create_alias(sender, reference, reply);
+        alias_create(sender, reference, reply);
 
         reference
     }
@@ -86,10 +88,10 @@ impl Process {
     /// Explicitly deactivates a process alias.
     ///
     /// Returns `true` if the alias was currently-active for the current process, or `false` otherwise.
-    pub fn unalias(reference: Reference) -> bool {
-        PROCESS.with(|process| process.aliases.borrow_mut().remove(&reference.id()));
+    pub fn unalias(alias: Reference) -> bool {
+        PROCESS.with(|process| process.aliases.borrow_mut().remove(&alias.id()));
 
-        destroy_alias(reference)
+        alias_destroy(alias)
     }
 
     /// Returns the current [Pid].
@@ -140,7 +142,7 @@ impl Process {
             }
             Dest::Alias(reference) => {
                 if reference.is_local() {
-                    retrieve_alias(reference)
+                    alias_retrieve(reference)
                         .map(|alias| alias.sender.send(Message::User(message).into()));
                 } else {
                     unimplemented!("Send alias not supported!")
@@ -188,7 +190,7 @@ impl Process {
     }
 
     /// Spawns the given `function` as a process, creates a monitor for the calling process, and returns the new [Pid].
-    pub fn spawn_monitor<T>(function: T) -> (Pid, Monitor)
+    pub fn spawn_monitor<T>(function: T) -> (Pid, Reference)
     where
         T: Future<Output = ()> + Send + 'static,
         T::Output: Send + 'static,
@@ -339,7 +341,7 @@ impl Process {
     }
 
     /// Starts monitoring the given [Pid] from the calling process. If the [Pid] is already dead a message is sent immediately.
-    pub fn monitor<T: Into<Dest>>(dest: T) -> Monitor {
+    pub fn monitor<T: Into<Dest>>(dest: T) -> Reference {
         let current = Self::current();
         let dest = dest.into();
 
@@ -355,48 +357,52 @@ impl Process {
             unimplemented!("Remote process monitor unsupported!");
         }
 
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
+        // let mut registry = PROCESS_REGISTRY.write().unwrap();
 
-        let next_monitor_id = registry
-            .processes
-            .get_mut(&current.id())
-            .map(|process| process.next_monitor())
-            .unwrap();
+        // let next_monitor_id = registry
+        //     .processes
+        //     .get_mut(&current.id())
+        //     .map(|process| process.next_monitor())
+        //     .unwrap();
 
-        if let Some(process) = registry.processes.get_mut(&pid.id()) {
-            process.monitors.insert((current, next_monitor_id));
+        // if let Some(process) = registry.processes.get_mut(&pid.id()) {
+        //     process.monitors.insert((current, next_monitor_id));
 
-            registry
-                .processes
-                .get_mut(&current.id())
-                .map(|process| process.installed_monitors.insert(next_monitor_id, pid));
-        } else {
-            registry
-                .processes
-                .get(&current.id())
-                .map(|process| process.channel.clone())
-                .unwrap()
-                .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
-                    pid,
-                    Monitor::new(current, next_monitor_id),
-                    ExitReason::Custom(String::from("noproc")),
-                )))
-                .unwrap();
-        }
+        //     registry
+        //         .processes
+        //         .get_mut(&current.id())
+        //         .map(|process| process.installed_monitors.insert(next_monitor_id, pid));
+        // } else {
+        //     // registry
+        //     //     .processes
+        //     //     .get(&current.id())
+        //     //     .map(|process| process.channel.clone())
+        //     //     .unwrap()
+        //     //     .send(ProcessItem::SystemMessage(SystemMessage::ProcessDown(
+        //     //         pid,
+        //     //         Monitor::new(current, next_monitor_id),
+        //     //         ExitReason::Custom(String::from("noproc")),
+        //     //     )))
+        //     //     .unwrap();
+        // }
 
-        Monitor::new(current, next_monitor_id)
+        //Monitor::new(current, next_monitor_id)
+        Reference::new()
     }
 
-    /// Demonitors the monitor identifier by the given [Monitor] reference.
-    pub fn demonitor(monitor: Monitor) {
-        if monitor.pid().is_remote() {
+    /// Demonitors the monitor identifier by the given reference.
+    ///
+    /// If a monitor message was sent to the process already but was not received, it will be discarded automatically.
+    pub fn demonitor(monitor: Reference) {
+        let Some(pid) = PROCESS.with(|process| process.monitors.borrow_mut().remove(&monitor))
+        else {
+            return;
+        };
+
+        if pid.is_local() {
+            monitor_destroy(pid, monitor);
+        } else {
             unimplemented!("Remote process monitor unsupported!");
-        }
-
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-
-        if let Some(process) = registry.processes.get_mut(&monitor.pid().id()) {
-            process.installed_monitors.remove(&monitor.reference());
         }
     }
 
@@ -448,8 +454,6 @@ impl Drop for Process {
             registry.named_processes.remove(&name);
         }
 
-        destroy_aliases(self.aliases.borrow().iter());
-
         for link in process.links {
             if link.is_remote() {
                 unimplemented!("Remote process link unsupported!");
@@ -458,33 +462,19 @@ impl Drop for Process {
             registry.exit_signal_linked_process(link, self.pid, process.exit_reason.clone());
         }
 
-        for (monitor, monitor_id) in process.monitors {
-            if monitor.is_remote() {
-                unimplemented!("Remote process monitor unsupported!");
-            }
+        drop(registry);
 
-            registry.exit_signal_monitored_process(
-                monitor,
-                monitor_id,
-                self.pid,
-                process.exit_reason.clone(),
-            );
-        }
+        monitor_process_down(self.pid, process.exit_reason);
+        monitor_destroy_all(self.monitors.borrow().iter());
 
-        for (monitor_id, monitor) in process.installed_monitors {
-            if monitor.is_remote() {
-                unimplemented!("Remote process monitor unsupported!");
-            }
-
-            registry.uninstall_monitored_process(monitor, monitor_id, self.pid);
-        }
+        alias_destroy_all(self.aliases.borrow().iter());
     }
 }
 
 /// Internal spawn result.
 enum SpawnResult {
     Pid(Pid),
-    PidMonitor(Pid, Monitor),
+    PidMonitor(Pid, Reference),
 }
 
 /// Internal spawn utility.
@@ -499,7 +489,7 @@ where
     let mut next_id = ID.fetch_add(1, Ordering::Relaxed);
 
     // Guard against spawning more processes than we can allocate ids for.
-    if registry.processes.len() >= u32::MAX as usize {
+    if registry.processes.len() >= u32::MAX as usize - 1 {
         drop(registry);
         panic!("Maximum number of processes spawned!");
     }
@@ -525,6 +515,19 @@ where
 
     let pid = Pid::local(next_id);
     let process = Process::new(pid, tx.clone(), rx);
+
+    let mut result = SpawnResult::Pid(pid);
+
+    // If a monitor was requested, insert it before spawning the process.
+    if monitor {
+        let monitor = Reference::new();
+
+        PROCESS.with(|process| process.monitors.borrow_mut().insert(monitor, pid));
+
+        monitor_create(pid, monitor, Process::current());
+
+        result = SpawnResult::PidMonitor(pid, monitor);
+    }
 
     // Spawn the process with the newly created process object in scope.
     let handle = tokio::spawn(PROCESS.scope(process, async move {
@@ -552,23 +555,6 @@ where
             .processes
             .get_mut(&current.id())
             .map(|process| process.links.insert(pid));
-    }
-
-    let mut result = SpawnResult::Pid(pid);
-
-    // If a monitor was requested insert it before closing the lock.
-    if monitor {
-        let current = Process::current();
-        let next_monitor_id = registration.next_monitor();
-
-        registration.monitors.insert((current, next_monitor_id));
-
-        registry
-            .processes
-            .get_mut(&current.id())
-            .map(|process| process.installed_monitors.insert(next_monitor_id, pid));
-
-        result = SpawnResult::PidMonitor(pid, Monitor::new(current, next_monitor_id));
     }
 
     registry.processes.insert(next_id, registration);

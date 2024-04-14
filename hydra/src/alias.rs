@@ -19,24 +19,24 @@ pub struct Alias {
 }
 
 /// Creates an alias for the given process and reference.
-pub fn create_alias(sender: ProcessSend, reference: Reference, reply: bool) {
+pub fn alias_create(sender: ProcessSend, reference: Reference, reply: bool) {
     ALIASES.insert(reference.id(), Alias { sender, reply });
 }
 
 /// Destroys an alias for the given reference, returning `true` if the alias existed.
-pub fn destroy_alias(reference: Reference) -> bool {
+pub fn alias_destroy(reference: Reference) -> bool {
     ALIASES.remove(&reference.id()).is_some()
 }
 
 /// Destroys all of the alias for every given reference.
-pub fn destroy_aliases<'a, A: IntoIterator<Item = &'a u64>>(ids: A) {
+pub fn alias_destroy_all<'a, A: IntoIterator<Item = &'a u64>>(ids: A) {
     for id in ids {
         ALIASES.remove(id);
     }
 }
 
 /// Retrieves an alias for the given reference if it's active.
-pub fn retrieve_alias(reference: Reference) -> Option<Alias> {
+pub fn alias_retrieve(reference: Reference) -> Option<Alias> {
     let mut active: Option<Alias> = None;
 
     let result = ALIASES.remove_if(&reference.id(), |_, alias| {
