@@ -87,6 +87,8 @@ impl Process {
     ///
     /// Returns `true` if the alias was currently-active for the current process, or `false` otherwise.
     pub fn unalias(reference: Reference) -> bool {
+        PROCESS.with(|process| process.aliases.borrow_mut().remove(&reference.id()));
+
         destroy_alias(reference)
     }
 
