@@ -135,7 +135,10 @@ fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<
         }
 
         #[cfg(not(any(feature = "json")))]
-        unimplemented!()
+        {
+            let _ = serialized;
+            unimplemented!()
+        }
     }
 
     match item {
