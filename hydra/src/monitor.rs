@@ -33,8 +33,14 @@ pub fn monitor_destroy(process: Pid, reference: Reference) {
 }
 
 /// Destroys all monitors registered for the given reference, pid combination.
-pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a Pid)>>(monitors: M) {
+pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a Option<Pid>)>>(
+    monitors: M,
+) {
     for (reference, pid) in monitors {
+        let Some(pid) = pid else {
+            continue;
+        };
+
         if pid.is_local() {
             MONITORS.alter(&pid.id(), |_, mut value| {
                 value.remove(reference);
@@ -73,7 +79,7 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                 unimplemented!("Remote process monitor unsupported!");
             }
 
-            PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, pid));
+            PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, Some(pid)));
 
             let registry = PROCESS_REGISTRY.read().unwrap();
 
@@ -87,12 +93,13 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
             let registry = PROCESS_REGISTRY.read().unwrap();
 
             let Some(process) = registry.named_processes.get(name.as_ref()) else {
+                PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, None));
                 return send_process_down(dest);
             };
 
             let pid = Pid::local(*process);
 
-            PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, pid));
+            PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, Some(pid)));
 
             if registry.processes.contains_key(process) {
                 monitor_create(pid, reference, from, dest);

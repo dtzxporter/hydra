@@ -49,7 +49,7 @@ pub struct Process {
     /// A collection of process aliases.
     pub(crate) aliases: RefCell<BTreeSet<u64>>,
     /// A collection of process monitor references.
-    pub(crate) monitors: RefCell<BTreeMap<Reference, Pid>>,
+    pub(crate) monitors: RefCell<BTreeMap<Reference, Option<Pid>>>,
 }
 
 tokio::task_local! {
@@ -357,7 +357,8 @@ impl Process {
     ///
     /// If a monitor message was sent to the process already but was not received, it will be discarded automatically.
     pub fn demonitor(monitor: Reference) {
-        let Some(pid) = PROCESS.with(|process| process.monitors.borrow_mut().remove(&monitor))
+        let Some(Some(pid)) =
+            PROCESS.with(|process| process.monitors.borrow_mut().remove(&monitor))
         else {
             return;
         };
@@ -485,7 +486,7 @@ where
     if monitor {
         let monitor = Reference::new();
 
-        PROCESS.with(|process| process.monitors.borrow_mut().insert(monitor, pid));
+        PROCESS.with(|process| process.monitors.borrow_mut().insert(monitor, Some(pid)));
 
         monitor_create(pid, monitor, Process::current(), pid.into());
 

@@ -51,6 +51,37 @@ async fn monitor_named_works() {
 }
 
 #[hydra::test]
+async fn monitor_noproc_works() {
+    let pid = Process::spawn(async {
+        // End immediately.
+    });
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+
+    let reference1 = Process::monitor("no_exists");
+    let reference2 = Process::monitor(pid);
+
+    let message1: Message<()> = Process::receive().await;
+    let message2: Message<()> = Process::receive().await;
+
+    if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message1 {
+        assert!(object == "no_exists");
+        assert!(reference1 == mref);
+        assert!(matches!(exit_reason, ExitReason::Custom(_)));
+    } else {
+        panic!("Expected process down message!");
+    }
+
+    if let Message::System(SystemMessage::ProcessDown(object, mref, exit_reason)) = message2 {
+        assert!(object == pid);
+        assert!(reference2 == mref);
+        assert!(matches!(exit_reason, ExitReason::Custom(_)));
+    } else {
+        panic!("Expected process down message!");
+    }
+}
+
+#[hydra::test]
 async fn demonitor_works() {
     let is_down: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let is_down_ref = is_down.clone();
