@@ -11,7 +11,7 @@ use hydra::SystemMessage;
 #[hydra::test]
 async fn monitor_works() {
     let pid = Process::spawn(async {
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        Process::sleep(Duration::from_millis(50)).await;
         panic!("we're going down!");
     });
 
@@ -31,7 +31,7 @@ async fn monitor_works() {
 #[hydra::test]
 async fn monitor_named_works() {
     let pid = Process::spawn(async {
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        Process::sleep(Duration::from_millis(50)).await;
         panic!("we're going down!");
     });
 
@@ -56,7 +56,7 @@ async fn monitor_noproc_works() {
         // End immediately.
     });
 
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    Process::sleep(Duration::from_millis(10)).await;
 
     let reference1 = Process::monitor("no_exists");
     let reference2 = Process::monitor(pid);
@@ -87,14 +87,14 @@ async fn demonitor_works() {
     let is_down_ref = is_down.clone();
 
     let (_, monitor) = Process::spawn_monitor(async move {
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        Process::sleep(Duration::from_millis(50)).await;
         is_down_ref.store(true, Ordering::Relaxed);
         panic!("we're going down!");
     });
 
     Process::demonitor(monitor);
 
-    tokio::time::sleep(Duration::from_millis(75)).await;
+    Process::sleep(Duration::from_millis(75)).await;
 
     assert!(is_down.load(Ordering::Relaxed));
 

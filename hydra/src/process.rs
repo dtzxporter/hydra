@@ -5,6 +5,7 @@ use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use flume::Receiver;
 use flume::Sender;
@@ -217,6 +218,11 @@ impl Process {
             .unwrap()
             .processes
             .contains_key(&pid.id())
+    }
+
+    /// Sleeps the current process for the given duration.
+    pub async fn sleep(duration: Duration) {
+        tokio::time::sleep(duration).await
     }
 
     /// Registers the given [Pid] under `name` if the process is local, active, and the name is not already registered.

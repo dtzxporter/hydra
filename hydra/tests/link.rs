@@ -14,7 +14,7 @@ async fn link_works() {
         let _ = Process::receive::<()>().await;
     });
 
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    Process::sleep(Duration::from_millis(10)).await;
 
     assert!(!Process::alive(pid));
 }
@@ -40,7 +40,7 @@ async fn link_trap_exit_works() {
 #[hydra::test]
 async fn unlink_works() {
     let pid = Process::spawn_link(async {
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        Process::sleep(Duration::from_millis(10)).await;
         panic!("we died!");
     });
 
