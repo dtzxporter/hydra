@@ -22,6 +22,7 @@ use crate::monitor_destroy;
 use crate::monitor_destroy_all;
 use crate::monitor_install;
 use crate::monitor_process_down;
+use crate::AsyncCatchUnwind;
 use crate::CatchUnwind;
 use crate::Dest;
 use crate::ExitReason;
@@ -182,6 +183,18 @@ impl Process {
         }
     }
 
+    /// Spawns the given `function` as a blocking process and returns it's [Pid].
+    pub fn spawn_blocking<T, R>(function: T) -> Pid
+    where
+        T: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        match spawn_blocking_internal(function, false, false) {
+            SpawnResult::Pid(pid) => pid,
+            SpawnResult::PidMonitor(_, _) => unreachable!(),
+        }
+    }
+
     /// Spawns the given `function` as a process, creates a link between the calling process, and returns the new [Pid].
     pub fn spawn_link<T>(function: T) -> Pid
     where
@@ -194,6 +207,18 @@ impl Process {
         }
     }
 
+    /// Spawns the given `function` as a blocking process, creates a link between the calling process, and returns the new [Pid].
+    pub fn spawn_blocking_link<T, R>(function: T) -> Pid
+    where
+        T: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        match spawn_blocking_internal(function, true, false) {
+            SpawnResult::Pid(pid) => pid,
+            SpawnResult::PidMonitor(_, _) => unreachable!(),
+        }
+    }
+
     /// Spawns the given `function` as a process, creates a monitor for the calling process, and returns the new [Pid].
     pub fn spawn_monitor<T>(function: T) -> (Pid, Reference)
     where
@@ -201,6 +226,18 @@ impl Process {
         T::Output: Send + 'static,
     {
         match spawn_internal(function, false, true) {
+            SpawnResult::Pid(_) => unreachable!(),
+            SpawnResult::PidMonitor(pid, monitor) => (pid, monitor),
+        }
+    }
+
+    /// Spawns the given `function` as a blocking process, creates a monitor for the calling process, and returns the new [Pid].
+    pub fn spawn_blocking_monitor<T, R>(function: T) -> (Pid, Reference)
+    where
+        T: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        match spawn_blocking_internal(function, false, true) {
             SpawnResult::Pid(_) => unreachable!(),
             SpawnResult::PidMonitor(pid, monitor) => (pid, monitor),
         }
@@ -424,14 +461,15 @@ enum SpawnResult {
     PidMonitor(Pid, Reference),
 }
 
+/// The next process id to allocate if free.
+static ID: AtomicU32 = AtomicU32::new(1);
+
 /// Internal spawn utility.
 fn spawn_internal<T>(function: T, link: bool, monitor: bool) -> SpawnResult
 where
     T: Future<Output = ()> + Send + 'static,
     T::Output: Send + 'static,
 {
-    static ID: AtomicU32 = AtomicU32::new(1);
-
     let mut registry = PROCESS_REGISTRY.write().unwrap();
     let mut next_id = ID.fetch_add(1, Ordering::Relaxed);
 
@@ -486,7 +524,7 @@ where
 
     // Spawn the process with the newly created process object in scope.
     let handle = tokio::spawn(PROCESS.scope(process, async move {
-        if let Err(e) = CatchUnwind::new(AssertUnwindSafe(function)).await {
+        if let Err(e) = AsyncCatchUnwind::new(AssertUnwindSafe(function)).await {
             if let Some(process) = PROCESS_REGISTRY
                 .write()
                 .unwrap()
@@ -497,6 +535,88 @@ where
             }
         }
     }));
+
+    // Register the process under it's new id.
+    registry
+        .processes
+        .insert(next_id, ProcessRegistration::new(handle, tx));
+
+    result
+}
+
+/// Internal spawn blocking utility.
+fn spawn_blocking_internal<T, R>(function: T, link: bool, monitor: bool) -> SpawnResult
+where
+    T: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let mut registry = PROCESS_REGISTRY.write().unwrap();
+    let mut next_id = ID.fetch_add(1, Ordering::Relaxed);
+
+    // Guard against spawning more processes than we can allocate ids for.
+    if registry.processes.len() >= u32::MAX as usize - 1 {
+        drop(registry);
+        panic!("Maximum number of processes spawned!");
+    }
+
+    loop {
+        // Zero is a reserved system process id.
+        if next_id == 0 {
+            next_id = ID.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+
+        // Make sure the id is lower than the maximum id value, and not already taken.
+        if registry.processes.contains_key(&next_id) {
+            next_id = ID.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+
+        // We found an unused id.
+        break;
+    }
+
+    let (tx, rx) = flume::unbounded();
+
+    let pid = Pid::local(next_id);
+    let process = Process::new(pid, tx.clone(), rx);
+
+    let mut result = SpawnResult::Pid(pid);
+
+    // If a link was requested, insert it before spawning the process.
+    if link {
+        let current = Process::current();
+
+        link_create(pid, current);
+        link_create(current, pid);
+    }
+
+    // If a monitor was requested, insert it before spawning the process.
+    if monitor {
+        let monitor = Reference::new();
+
+        PROCESS.with(|process| process.monitors.borrow_mut().insert(monitor, Some(pid)));
+
+        monitor_create(pid, monitor, Process::current(), pid.into());
+
+        result = SpawnResult::PidMonitor(pid, monitor);
+    }
+
+    // Spawn the process with the newly created process object in scope.
+    let handle = tokio::task::spawn_blocking(move || {
+        PROCESS.sync_scope(process, move || {
+            if let Err(e) = CatchUnwind::new(AssertUnwindSafe(function)) {
+                if let Some(process) = PROCESS_REGISTRY
+                    .write()
+                    .unwrap()
+                    .processes
+                    .get_mut(&Process::current().id())
+                {
+                    process.exit_reason = e.into();
+                }
+            }
+        });
+    });
 
     // Register the process under it's new id.
     registry
