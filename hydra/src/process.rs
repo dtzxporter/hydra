@@ -471,30 +471,7 @@ where
     T::Output: Send + 'static,
 {
     let mut registry = PROCESS_REGISTRY.write().unwrap();
-    let mut next_id = ID.fetch_add(1, Ordering::Relaxed);
-
-    // Guard against spawning more processes than we can allocate ids for.
-    if registry.processes.len() >= u32::MAX as usize - 1 {
-        drop(registry);
-        panic!("Maximum number of processes spawned!");
-    }
-
-    loop {
-        // Zero is a reserved system process id.
-        if next_id == 0 {
-            next_id = ID.fetch_add(1, Ordering::Relaxed);
-            continue;
-        }
-
-        // Make sure the id is lower than the maximum id value, and not already taken.
-        if registry.processes.contains_key(&next_id) {
-            next_id = ID.fetch_add(1, Ordering::Relaxed);
-            continue;
-        }
-
-        // We found an unused id.
-        break;
-    }
+    let next_id = ID.fetch_add(1, Ordering::Relaxed);
 
     let (tx, rx) = flume::unbounded();
 
@@ -551,30 +528,7 @@ where
     R: Send + 'static,
 {
     let mut registry = PROCESS_REGISTRY.write().unwrap();
-    let mut next_id = ID.fetch_add(1, Ordering::Relaxed);
-
-    // Guard against spawning more processes than we can allocate ids for.
-    if registry.processes.len() >= u32::MAX as usize - 1 {
-        drop(registry);
-        panic!("Maximum number of processes spawned!");
-    }
-
-    loop {
-        // Zero is a reserved system process id.
-        if next_id == 0 {
-            next_id = ID.fetch_add(1, Ordering::Relaxed);
-            continue;
-        }
-
-        // Make sure the id is lower than the maximum id value, and not already taken.
-        if registry.processes.contains_key(&next_id) {
-            next_id = ID.fetch_add(1, Ordering::Relaxed);
-            continue;
-        }
-
-        // We found an unused id.
-        break;
-    }
+    let next_id = ID.fetch_add(1, Ordering::Relaxed);
 
     let (tx, rx) = flume::unbounded();
 

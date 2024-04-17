@@ -23,7 +23,6 @@ use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
 use crate::SystemMessage;
-use crate::NODE_REGISTRY;
 
 type Reader = SplitStream<Framed<TcpStream, Codec>>;
 type Writer = SplitSink<Framed<TcpStream, Codec>, Frame>;
@@ -131,5 +130,5 @@ pub async fn start_local_node(name: String, options: NodeOptions) {
         }
     }
 
-    NODE_REGISTRY.write().unwrap().remove(&0);
+    // NODE_REGISTRY.write().unwrap().remove(&0);
 }

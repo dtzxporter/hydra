@@ -8,7 +8,7 @@ use hmac::Mac;
 use bincode::Decode;
 use bincode::Encode;
 
-use crate::NODE_COOKIE;
+use crate::node_get_cookie;
 
 /// Hmac using sha256.
 type HmacSha256 = Hmac<Sha256>;
@@ -24,7 +24,7 @@ impl Hello {
     /// Constructs a new instance of the [Hello] frame.
     pub fn new(name: String, broadcast_address: SocketAddr) -> Self {
         let mut challenge = {
-            let cookie = NODE_COOKIE.lock().unwrap();
+            let cookie = node_get_cookie();
             let cookie = cookie
                 .as_ref()
                 .map(|cookie| cookie.as_bytes())
@@ -46,7 +46,7 @@ impl Hello {
     /// Validates this [Hello] frame against our cookie.
     pub fn validate(&self) -> bool {
         let mut challenge = {
-            let cookie = NODE_COOKIE.lock().unwrap();
+            let cookie = node_get_cookie();
             let cookie = cookie
                 .as_ref()
                 .map(|cookie| cookie.as_bytes())

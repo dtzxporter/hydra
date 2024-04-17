@@ -1,8 +1,20 @@
 use std::fmt::Debug;
+use std::net::SocketAddr;
 use std::num::NonZeroU64;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use crate::Node;
+use crate::SERIALIZE_NODE;
+
+/// The representation of a [Pid] serialized for the wire.
+#[derive(Serialize, Deserialize)]
+enum PidWire {
+    Local(NonZeroU64),
+    Remote(NonZeroU64, String, SocketAddr),
+    RemoteUnavailable(NonZeroU64),
+}
 
 /// A unique identifier of a process in hydra.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -46,19 +58,43 @@ impl Debug for Pid {
 }
 
 impl Serialize for Pid {
-    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        unimplemented!()
+        SERIALIZE_NODE.with(|target| {
+            let node: PidWire = match self {
+                Self::Local(id) => {
+                    if matches!(target, Node::Local) {
+                        PidWire::Local(*id)
+                    } else {
+                        // Lookup local node.
+                        PidWire::Local(*id)
+                    }
+                }
+                Self::Remote(id, node) => {
+                    // lookup the remote node.
+                    //
+                    panic!()
+                }
+            };
+
+            node.serialize(serializer)
+        })
     }
 }
 
 impl<'de> Deserialize<'de> for Pid {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        unimplemented!()
+        let node: PidWire = PidWire::deserialize(deserializer)?;
+
+        match node {
+            PidWire::Local(id) => Ok(Self::Local(id)),
+            PidWire::Remote(id, name, address) => panic!(),
+            PidWire::RemoteUnavailable(id) => panic!(),
+        }
     }
 }
