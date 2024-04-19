@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
@@ -14,6 +15,9 @@ use crate::NodeRegistration;
 use crate::NodeState;
 use crate::Pid;
 use crate::Process;
+
+/// Represents a node id that will never be allocated.
+pub const INVALID_NODE_ID: u64 = u64::MAX;
 
 // When a pid is serialized over the wire, we need to lookup it's node@ip:port combination.
 // If it's already in the registry, we need to get it's node id, else
@@ -68,19 +72,31 @@ pub fn node_local_stop() {
     NODE_REGISTRATIONS.clear();
 }
 
-/// Registers a connection to a remote node.
-pub fn node_register(node: Node, _connect: bool) {
-    let Entry::Vacant(entry) = NODE_MAP.entry(node) else {
-        return;
+/// Registers a remote node's information, or returns an existing one.
+pub fn node_register(node: Node, connect: bool) -> u64 {
+    let Node::Remote(name, address) = node else {
+        panic!("Can't register a local node!");
+    };
+
+    let entry = match NODE_MAP.entry((name.clone(), address).into()) {
+        Entry::Vacant(entry) => entry,
+        Entry::Occupied(entry) => return *entry.get(),
     };
 
     let next_id = NODE_ID.fetch_add(1, Ordering::Relaxed);
 
-    // Spawn and register the node.
+    if connect {
+        // actually connect lol
+    } else {
+        NODE_REGISTRATIONS.insert(
+            next_id,
+            NodeRegistration::new(None, NodeState::Known, name, address),
+        );
+    }
 
-    // Insert the entry after setting up the registration so that no one can attempt to map this
-    // node before the registration information is populated.
     entry.insert(next_id);
+
+    next_id
 }
 
 /// Returns the node list excluding the local node.
@@ -140,6 +156,20 @@ pub fn node_forget(node: Node) {
     if let Some(supervisor) = registration.supervisor {
         Process::exit(supervisor, ExitReason::Kill);
     }
+}
+
+/// Looks up the node information for the local node.
+pub fn node_lookup_local() -> Option<(String, SocketAddr)> {
+    NODE_REGISTRATIONS
+        .get(&0)
+        .map(|registration| (registration.name.clone(), registration.broadcast_address))
+}
+
+/// Looks up the node information for a remote node id.
+pub fn node_lookup_remote(id: u64) -> Option<(String, SocketAddr)> {
+    NODE_REGISTRATIONS
+        .get(&id)
+        .map(|registration| (registration.name.clone(), registration.broadcast_address))
 }
 
 /// Gets the cookie secret value.

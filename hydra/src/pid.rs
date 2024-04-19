@@ -5,7 +5,11 @@ use std::num::NonZeroU64;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::node_lookup_local;
+use crate::node_lookup_remote;
+use crate::node_register;
 use crate::Node;
+use crate::INVALID_NODE_ID;
 use crate::SERIALIZE_NODE;
 
 /// The representation of a [Pid] serialized for the wire.
@@ -68,15 +72,32 @@ impl Serialize for Pid {
                     if matches!(target, Node::Local) {
                         PidWire::Local(*id)
                     } else {
-                        // Lookup local node.
-                        PidWire::Local(*id)
+                        match node_lookup_local() {
+                            Some((name, address)) => {
+                                let node: Node = (name.as_str(), address).into();
+
+                                if node == *target {
+                                    PidWire::Local(*id)
+                                } else {
+                                    PidWire::Remote(*id, name, address)
+                                }
+                            }
+                            None => PidWire::RemoteUnavailable(*id),
+                        }
                     }
                 }
-                Self::Remote(id, node) => {
-                    // lookup the remote node.
-                    //
-                    panic!()
-                }
+                Self::Remote(id, node) => match node_lookup_remote(*node) {
+                    Some((name, address)) => {
+                        let node: Node = (name.as_str(), address).into();
+
+                        if node == *target {
+                            PidWire::Local(*id)
+                        } else {
+                            PidWire::Remote(*id, name, address)
+                        }
+                    }
+                    None => PidWire::RemoteUnavailable(*id),
+                },
             };
 
             node.serialize(serializer)
@@ -93,8 +114,12 @@ impl<'de> Deserialize<'de> for Pid {
 
         match node {
             PidWire::Local(id) => Ok(Self::Local(id)),
-            PidWire::Remote(id, name, address) => panic!(),
-            PidWire::RemoteUnavailable(id) => panic!(),
+            PidWire::Remote(id, name, address) => {
+                let node = node_register((name, address).into(), false);
+
+                Ok(Self::Remote(id, node))
+            }
+            PidWire::RemoteUnavailable(id) => Ok(Self::Remote(id, INVALID_NODE_ID)),
         }
     }
 }

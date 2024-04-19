@@ -17,10 +17,15 @@ pub struct NodeRegistration {
 
 impl NodeRegistration {
     /// Constructs a new [NodeRegistration] from a given process, name, and broadcast address.
-    pub fn new(supervisor: Pid, name: String, broadcast_address: SocketAddr) -> Self {
+    pub fn new(
+        supervisor: Option<Pid>,
+        state: NodeState,
+        name: String,
+        broadcast_address: SocketAddr,
+    ) -> Self {
         Self {
-            supervisor: Some(supervisor),
-            state: NodeState::Known,
+            supervisor,
+            state,
             name,
             broadcast_address,
         }
