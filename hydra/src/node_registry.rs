@@ -50,6 +50,16 @@ pub fn node_local_start(name: String, options: NodeOptions) -> Pid {
         let _ = options;
     });
 
+    NODE_REGISTRATIONS.insert(
+        0,
+        NodeRegistration::new(
+            Some(supervisor),
+            NodeState::Current,
+            name,
+            options.broadcast_address,
+        ),
+    );
+
     entry.insert(0);
 
     supervisor
@@ -86,7 +96,7 @@ pub fn node_register(node: Node, connect: bool) -> u64 {
     let next_id = NODE_ID.fetch_add(1, Ordering::Relaxed);
 
     if connect {
-        // actually connect lol
+        panic!("actually connect lol");
     } else {
         NODE_REGISTRATIONS.insert(
             next_id,
