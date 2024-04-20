@@ -8,6 +8,7 @@ use dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 
+use crate::node_local_supervisor;
 use crate::ExitReason;
 use crate::Node;
 use crate::NodeOptions;
@@ -44,11 +45,7 @@ pub fn node_local_start(name: String, options: NodeOptions) -> Pid {
         panic!("Local node already started!");
     };
 
-    let supervisor = Process::spawn(async move {
-        //
-        let _ = name;
-        let _ = options;
-    });
+    let supervisor = Process::spawn(node_local_supervisor(name.clone(), options));
 
     NODE_REGISTRATIONS.insert(
         0,
