@@ -12,7 +12,12 @@ use crate::PROCESS_REGISTRY;
 static LINKS: Lazy<DashMap<u64, BTreeSet<Pid>>> = Lazy::new(DashMap::new);
 
 /// Creates a link for the given local process from the given process.
-pub fn link_create(process: Pid, from: Pid) {
+pub fn link_create(process: Pid, from: Pid, ignore_errors: bool) {
+    if ignore_errors {
+        LINKS.entry(process.id()).or_default().insert(from);
+        return;
+    }
+
     if PROCESS_REGISTRY
         .read()
         .unwrap()

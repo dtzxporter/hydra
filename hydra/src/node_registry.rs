@@ -92,6 +92,11 @@ pub fn node_set_send_recv(node: Node, sender: Pid, receiver: Pid) {
     });
 }
 
+/// Gets the send process for a given node.
+pub fn node_get_send(id: u64) -> Option<Pid> {
+    NODE_REGISTRATIONS.get(&id)?.sender
+}
+
 /// Accepts a remote node's connection if one doesn't exist, returns `true` if accepted.
 pub fn node_accept(node: Node, supervisor: Pid) -> bool {
     let Node::Remote(name, address) = node else {

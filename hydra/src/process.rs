@@ -22,6 +22,9 @@ use crate::monitor_destroy;
 use crate::monitor_destroy_all;
 use crate::monitor_install;
 use crate::monitor_process_down;
+use crate::node_process_send_with_alias;
+use crate::node_process_send_with_name;
+use crate::node_process_send_with_pid;
 use crate::AsyncCatchUnwind;
 use crate::CatchUnwind;
 use crate::Dest;
@@ -131,7 +134,7 @@ impl Process {
                         .get(&pid.id())
                         .map(|process| process.sender.send(Message::User(message).into()));
                 } else {
-                    unimplemented!("Send remote pid not supported!")
+                    node_process_send_with_pid(pid, message);
                 }
             }
             Dest::Named(name) => {
@@ -143,15 +146,15 @@ impl Process {
                     .and_then(|id| registry.processes.get(id))
                     .map(|process| process.sender.send(Message::User(message).into()));
             }
-            Dest::RemoteNamed(_, _) => {
-                unimplemented!("Send remote named not supported!")
+            Dest::RemoteNamed(name, node) => {
+                node_process_send_with_name(name.into_owned(), node, message);
             }
             Dest::Alias(reference) => {
                 if reference.is_local() {
                     alias_retrieve(reference)
                         .map(|alias| alias.sender.send(Message::User(message).into()));
                 } else {
-                    unimplemented!("Send alias not supported!")
+                    node_process_send_with_alias(reference, message);
                 }
             }
         }
@@ -347,8 +350,8 @@ impl Process {
             unimplemented!("Remote process link unsupported!");
         }
 
-        link_create(pid, current);
-        link_create(current, pid);
+        link_create(pid, current, false);
+        link_create(current, pid, false);
     }
 
     /// Removes the link between the calling process and the given process.
@@ -484,8 +487,8 @@ where
     if link {
         let current = Process::current();
 
-        link_create(pid, current);
-        link_create(current, pid);
+        link_create(pid, current, true);
+        link_create(current, pid, true);
     }
 
     // If a monitor was requested, insert it before spawning the process.
@@ -541,8 +544,8 @@ where
     if link {
         let current = Process::current();
 
-        link_create(pid, current);
-        link_create(current, pid);
+        link_create(pid, current, true);
+        link_create(current, pid, true);
     }
 
     // If a monitor was requested, insert it before spawning the process.

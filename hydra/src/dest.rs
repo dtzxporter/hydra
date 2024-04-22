@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use crate::Node;
 use crate::Pid;
 use crate::Reference;
 
@@ -11,7 +12,7 @@ pub enum Dest {
     /// A registered local process name.
     Named(Cow<'static, str>),
     /// A remote registered process name.
-    RemoteNamed(Cow<'static, str>, String),
+    RemoteNamed(Cow<'static, str>, Node),
     /// A reference to an alias.
     Alias(Reference),
 }
@@ -34,15 +35,12 @@ impl From<String> for Dest {
     }
 }
 
-impl From<(&'static str, String)> for Dest {
-    fn from(value: (&'static str, String)) -> Self {
-        Self::RemoteNamed(value.0.into(), value.1)
-    }
-}
-
-impl From<(&'static str, &str)> for Dest {
-    fn from(value: (&'static str, &str)) -> Self {
-        Self::RemoteNamed(value.0.into(), value.1.to_string())
+impl<T> From<(&'static str, T)> for Dest
+where
+    T: Into<Node>,
+{
+    fn from(value: (&'static str, T)) -> Self {
+        Self::RemoteNamed(value.0.into(), value.1.into())
     }
 }
 

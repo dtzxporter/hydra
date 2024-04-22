@@ -18,8 +18,10 @@ use crate::frame::Codec;
 use crate::frame::Frame;
 use crate::frame::Hello;
 use crate::frame::Ping;
+use crate::frame::Pong;
 
 use crate::node_accept;
+use crate::node_forward_send;
 use crate::node_set_send_recv;
 use crate::Local;
 use crate::Message;
@@ -32,7 +34,7 @@ type Reader = SplitStream<Framed<TcpStream, Codec>>;
 type Writer = SplitSink<Framed<TcpStream, Codec>, Frame>;
 
 #[derive(Serialize, Deserialize)]
-enum NodeRemoteSenderMessage {
+pub enum NodeRemoteSenderMessage {
     SendFrame(Local<Frame>),
 }
 
@@ -71,8 +73,11 @@ async fn node_remote_sender(mut writer: Writer, supervisor: Arc<NodeRemoteSuperv
         };
 
         match message {
-            Message::User(_) => {
-                //
+            Message::User(NodeRemoteSenderMessage::SendFrame(frame)) => {
+                writer
+                    .send(frame.into_inner())
+                    .await
+                    .expect("Failed to send a message to the remote node!");
             }
             _ => unreachable!(),
         }
@@ -96,6 +101,9 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
             }
             Frame::Pong => {
                 // Maybe log this in metrics somewhere!
+            }
+            Frame::Send(send) => {
+                node_forward_send(send);
             }
         }
     }
@@ -131,8 +139,10 @@ async fn node_remote_supervisor(
 
         match message {
             Message::User(NodeRemoteSupervisorMessage::SendPong) => {
-                // TODO: Send to the sender about a pong message.
-                unimplemented!()
+                Process::send(
+                    sender,
+                    NodeRemoteSenderMessage::SendFrame(Local::new(Pong.into())),
+                );
             }
             _ => unreachable!(),
         }

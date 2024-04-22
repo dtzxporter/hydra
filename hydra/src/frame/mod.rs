@@ -20,10 +20,12 @@ use tokio_util::codec::Encoder;
 mod hello;
 mod ping;
 mod pong;
+mod send;
 
 pub use hello::*;
 pub use ping::*;
 pub use pong::*;
+pub use send::*;
 
 /// Bincode configuration for the frame codec.
 const FRAME_CONFIG: Configuration<LittleEndian, Fixint> = config::standard()
@@ -36,6 +38,7 @@ pub enum Frame {
     Hello(Hello),
     Ping,
     Pong,
+    Send(Send),
 }
 
 impl From<Hello> for Frame {
@@ -53,6 +56,12 @@ impl From<Ping> for Frame {
 impl From<Pong> for Frame {
     fn from(_: Pong) -> Self {
         Self::Pong
+    }
+}
+
+impl From<Send> for Frame {
+    fn from(value: Send) -> Self {
+        Self::Send(value)
     }
 }
 
