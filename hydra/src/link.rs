@@ -13,7 +13,17 @@ static LINKS: Lazy<DashMap<u64, BTreeSet<Pid>>> = Lazy::new(DashMap::new);
 
 /// Creates a link for the given local process from the given process.
 pub fn link_create(process: Pid, from: Pid) {
-    LINKS.entry(process.id()).or_default().insert(from);
+    if PROCESS_REGISTRY
+        .read()
+        .unwrap()
+        .processes
+        .get(&process.id())
+        .is_some()
+    {
+        LINKS.entry(process.id()).or_default().insert(from);
+    } else {
+        panic!("Process doesn't exist!");
+    }
 }
 
 /// Destroys a link for the given local process.

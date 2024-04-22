@@ -13,6 +13,7 @@ use crate::node_get_cookie;
 /// Hmac using sha256.
 type HmacSha256 = Hmac<Sha256>;
 
+/// The frame used to handshake with other nodes.
 #[derive(Debug, Encode, Decode)]
 pub struct Hello {
     pub name: String,
@@ -44,7 +45,7 @@ impl Hello {
     }
 
     /// Validates this [Hello] frame against our cookie.
-    pub fn validate(&self) -> bool {
+    pub fn validate(&mut self) -> bool {
         let mut challenge = {
             let cookie = node_get_cookie();
             let cookie = cookie
@@ -60,6 +61,8 @@ impl Hello {
 
         let wanted = challenge.finalize().into_bytes();
 
-        wanted.as_slice() == self.challenge
+        let challenge = std::mem::take(&mut self.challenge);
+
+        wanted.as_slice() == challenge
     }
 }

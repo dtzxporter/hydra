@@ -70,13 +70,66 @@ pub fn node_local_stop() {
 
     NODE_MAP.clear();
 
-    for entry in NODE_REGISTRATIONS.iter() {
+    if let Some(entry) = NODE_REGISTRATIONS.get(&0) {
         if let Some(supervisor) = entry.supervisor {
             Process::exit(supervisor, ExitReason::Kill);
         }
     }
 
     NODE_REGISTRATIONS.clear();
+}
+
+/// Sets the send and receive processes for a given node.
+pub fn node_set_send_recv(node: Node, sender: Pid, receiver: Pid) {
+    let Some(entry) = NODE_MAP.get(&node) else {
+        return;
+    };
+
+    NODE_REGISTRATIONS.alter(&entry, |_, mut value| {
+        value.sender = Some(sender);
+        value.receiver = Some(receiver);
+        value
+    });
+}
+
+/// Accepts a remote node's connection if one doesn't exist, returns `true` if accepted.
+pub fn node_accept(node: Node, supervisor: Pid) -> bool {
+    let Node::Remote(name, address) = node else {
+        panic!("Can't accept a local node!");
+    };
+
+    let entry = NODE_MAP.entry((name.clone(), address).into());
+
+    match entry {
+        Entry::Vacant(entry) => {
+            let next_id = NODE_ID.fetch_add(1, Ordering::Relaxed);
+
+            NODE_REGISTRATIONS.insert(
+                next_id,
+                NodeRegistration::new(Some(supervisor), NodeState::Connected, name, address),
+            );
+
+            entry.insert(next_id);
+
+            true
+        }
+        Entry::Occupied(entry) => {
+            let mut accepted = false;
+
+            NODE_REGISTRATIONS.alter(entry.get(), |_, mut value| {
+                if value.supervisor.is_none() {
+                    accepted = true;
+
+                    value.supervisor = Some(supervisor);
+                    value.state = NodeState::Connected;
+                }
+
+                value
+            });
+
+            accepted
+        }
+    }
 }
 
 /// Registers a remote node's information, or returns an existing one.
