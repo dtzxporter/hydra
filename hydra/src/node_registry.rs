@@ -264,6 +264,8 @@ pub fn node_disconnect(node: Node) {
     };
 
     NODE_REGISTRATIONS.alter(&id, |_, mut value| {
+        NODE_PENDING_MESSAGES.remove(&node);
+
         if let Some(supervisor) = value.supervisor.take() {
             Process::exit(supervisor, ExitReason::Kill);
         }
@@ -282,6 +284,8 @@ pub fn node_forget(node: Node) {
     let Some((_, registration)) = NODE_REGISTRATIONS.remove(&id) else {
         return;
     };
+
+    NODE_PENDING_MESSAGES.remove(&node);
 
     if let Some(supervisor) = registration.supervisor {
         Process::exit(supervisor, ExitReason::Kill);
