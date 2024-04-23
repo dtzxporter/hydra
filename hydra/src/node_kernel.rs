@@ -1,33 +1,18 @@
+use crate::frame::Frame;
 use crate::frame::Send;
 use crate::frame::SendTarget;
 
 use crate::alias_retrieve;
-use crate::node_get_send;
 use crate::node_lookup_remote;
 use crate::node_register;
+use crate::node_send_frame;
 use crate::serialize_for_node;
-use crate::Local;
 use crate::Node;
-use crate::NodeRemoteSenderMessage;
 use crate::Pid;
-use crate::Process;
 use crate::ProcessItem;
 use crate::Receivable;
 use crate::Reference;
 use crate::PROCESS_REGISTRY;
-
-/// Sends the given send frame to the node.
-fn node_process_send(send: Send, node: u64) {
-    let Some(sender) = node_get_send(node) else {
-        // TODO: noconnection?
-        return;
-    };
-
-    Process::send(
-        sender,
-        NodeRemoteSenderMessage::SendFrame(Local::new(send.into())),
-    );
-}
 
 /// Forwards an incoming nodes send frame message to the target if it exists.
 pub fn node_forward_send(send: Send) {
@@ -78,9 +63,9 @@ pub fn node_process_send_with_pid<M: Receivable>(pid: Pid, message: M) {
         return;
     };
 
-    let message = serialize_for_node(&message, (name, address).into());
+    let message = serialize_for_node(&message, Node::from((name, address)));
 
-    node_process_send(Send::with_pid(id, message), node);
+    node_send_frame(Frame::from(Send::with_pid(id, message)), node);
 }
 
 /// Sends the given message to the remote node with the given alias.
@@ -94,9 +79,9 @@ pub fn node_process_send_with_alias<M: Receivable>(reference: Reference, message
         return;
     };
 
-    let message = serialize_for_node(&message, (name, address).into());
+    let message = serialize_for_node(&message, Node::from((name, address)));
 
-    node_process_send(Send::with_alias(id, message), node);
+    node_send_frame(Frame::from(Send::with_alias(id, message)), node);
 }
 
 /// Sends the given message to the remote node with the given name/node.
@@ -105,5 +90,5 @@ pub fn node_process_send_with_name<M: Receivable>(name: String, node: Node, mess
 
     let node = node_register(node, false);
 
-    node_process_send(Send::with_name(name, message), node);
+    node_send_frame(Frame::from(Send::with_name(name, message)), node);
 }

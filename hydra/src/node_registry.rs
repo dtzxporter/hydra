@@ -8,11 +8,15 @@ use dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 
+use crate::frame::Frame;
+
 use crate::node_local_supervisor;
 use crate::ExitReason;
+use crate::Local;
 use crate::Node;
 use crate::NodeOptions;
 use crate::NodeRegistration;
+use crate::NodeRemoteSenderMessage;
 use crate::NodeState;
 use crate::Pid;
 use crate::Process;
@@ -27,6 +31,9 @@ static NODE_REGISTRATIONS: Lazy<DashMap<u64, NodeRegistration>> = Lazy::new(Dash
 
 /// A collection of node:id into the node registrations.
 static NODE_MAP: Lazy<DashMap<Node, u64>> = Lazy::new(DashMap::new);
+
+/// A collection of node:vec<msg> pending messages for a node.
+static NODE_PENDING_MESSAGES: Lazy<DashMap<Node, Vec<Frame>>> = Lazy::new(DashMap::new);
 
 /// A secret value that secures the connection between nodes.
 static NODE_COOKIE: Mutex<Option<String>> = Mutex::new(None);
@@ -79,7 +86,7 @@ pub fn node_local_stop() {
     NODE_REGISTRATIONS.clear();
 }
 
-/// Sets the send and receive processes for a given node.
+/// Sets the send and receive processes for a given node and flushes any pending messages.
 pub fn node_set_send_recv(node: Node, sender: Pid, receiver: Pid) {
     let Some(entry) = NODE_MAP.get(&node) else {
         return;
@@ -88,13 +95,43 @@ pub fn node_set_send_recv(node: Node, sender: Pid, receiver: Pid) {
     NODE_REGISTRATIONS.alter(&entry, |_, mut value| {
         value.sender = Some(sender);
         value.receiver = Some(receiver);
+
+        let frames = NODE_PENDING_MESSAGES
+            .remove(&node)
+            .map(|pending| pending.1)
+            .unwrap_or_default();
+
+        // We need to pop the pending messages and send them to the sender
+        // This way, the order for sent messages is maintained and all future messages go direct to the sender.
+        Process::send(
+            sender,
+            NodeRemoteSenderMessage::SendFrames(Local::new(frames)),
+        );
+
         value
     });
 }
 
 /// Gets the send process for a given node.
-pub fn node_get_send(id: u64) -> Option<Pid> {
-    NODE_REGISTRATIONS.get(&id)?.sender
+pub fn node_send_frame(frame: Frame, id: u64) {
+    let Some(registration) = NODE_REGISTRATIONS.get(&id) else {
+        return;
+    };
+
+    if let Some(sender) = registration.sender {
+        Process::send(
+            sender,
+            NodeRemoteSenderMessage::SendFrame(Local::new(frame)),
+        );
+    } else if !matches!(registration.state, NodeState::Known) {
+        NODE_PENDING_MESSAGES
+            .entry(Node::from((
+                registration.name.clone(),
+                registration.broadcast_address,
+            )))
+            .or_default()
+            .push(frame);
+    }
 }
 
 /// Accepts a remote node's connection if one doesn't exist, returns `true` if accepted.
@@ -103,7 +140,7 @@ pub fn node_accept(node: Node, supervisor: Pid) -> bool {
         panic!("Can't accept a local node!");
     };
 
-    let entry = NODE_MAP.entry((name.clone(), address).into());
+    let entry = NODE_MAP.entry(Node::from((name.clone(), address)));
 
     match entry {
         Entry::Vacant(entry) => {
@@ -122,6 +159,12 @@ pub fn node_accept(node: Node, supervisor: Pid) -> bool {
             let mut accepted = false;
 
             NODE_REGISTRATIONS.alter(entry.get(), |_, mut value| {
+                if matches!(value.state, NodeState::Pending) {
+                    if let Some(supervisor) = value.supervisor.take() {
+                        Process::exit(supervisor, ExitReason::Kill);
+                    }
+                }
+
                 if value.supervisor.is_none() {
                     accepted = true;
 
@@ -143,7 +186,7 @@ pub fn node_register(node: Node, connect: bool) -> u64 {
         panic!("Can't register a local node!");
     };
 
-    let entry = match NODE_MAP.entry((name.clone(), address).into()) {
+    let entry = match NODE_MAP.entry(Node::from((name.clone(), address))) {
         Entry::Vacant(entry) => entry,
         Entry::Occupied(entry) => {
             let node = *entry.get();
@@ -206,7 +249,7 @@ pub fn node_list_filtered(state: NodeState) -> Vec<Node> {
         .iter()
         .filter_map(|entry| {
             if entry.state == state {
-                Some((entry.name.clone(), entry.broadcast_address).into())
+                Some(Node::from((entry.name.clone(), entry.broadcast_address)))
             } else {
                 None
             }

@@ -9,6 +9,7 @@ use tokio_util::codec::Framed;
 
 use pingora_timeout::timeout;
 
+use futures_util::stream;
 use futures_util::stream::SplitSink;
 use futures_util::stream::SplitStream;
 use futures_util::SinkExt;
@@ -35,11 +36,15 @@ type Writer = SplitSink<Framed<TcpStream, Codec>, Frame>;
 
 #[derive(Serialize, Deserialize)]
 pub enum NodeRemoteSenderMessage {
+    /// Occurs when a new outbound frame is ready to be sent over the socket.
     SendFrame(Local<Frame>),
+    /// Occurs when a bunch of new outbound frames are ready to be sent over the socket.
+    SendFrames(Local<Vec<Frame>>),
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize)]
 enum NodeRemoteSupervisorMessage {
+    /// Occurs when the receiver has been sent a ping frame, so we must respond with a pong frame.
     SendPong,
 }
 
@@ -79,6 +84,14 @@ async fn node_remote_sender(mut writer: Writer, supervisor: Arc<NodeRemoteSuperv
                     .await
                     .expect("Failed to send a message to the remote node!");
             }
+            Message::User(NodeRemoteSenderMessage::SendFrames(frames)) => {
+                let mut stream = stream::iter(frames.into_inner().into_iter().map(Ok));
+
+                writer
+                    .send_all(&mut stream)
+                    .await
+                    .expect("Failed to send multiple messages to the remote node!");
+            }
             _ => unreachable!(),
         }
     }
@@ -115,19 +128,19 @@ async fn node_remote_supervisor(
     hello: Hello,
     supervisor: Arc<NodeLocalSupervisor>,
 ) {
-    let node: Node = (hello.name, hello.broadcast_address).into();
+    Process::link(supervisor.process);
+
+    let node = Node::from((hello.name, hello.broadcast_address));
 
     if !node_accept(node.clone(), Process::current()) {
         panic!("Not accepting node supervisor!");
-    }
+    };
 
-    let supervisor: Arc<NodeRemoteSupervisor> = Arc::new(NodeRemoteSupervisor {
+    let supervisor = Arc::new(NodeRemoteSupervisor {
         node: node.clone(),
         process: Process::current(),
         local_supervisor: supervisor,
     });
-
-    Process::link(supervisor.local_supervisor.process);
 
     let sender = Process::spawn_link(node_remote_sender(writer, supervisor.clone()));
     let receiver = Process::spawn_link(node_remote_receiver(reader, supervisor.clone()));
@@ -180,8 +193,4 @@ pub async fn node_remote_accepter(socket: TcpStream, supervisor: Arc<NodeLocalSu
     }
 
     panic!("Received incorrect frame for node handshake!");
-}
-
-pub async fn node_remote_connector(node: Node) {
-    //
 }

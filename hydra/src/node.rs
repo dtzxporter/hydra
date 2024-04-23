@@ -40,18 +40,18 @@ impl Node {
             panic!("Can't connect to self!");
         };
 
-        node_register((name, address).into(), true);
+        node_register(Node::from((name, address)), true);
     }
 
     /// Forcefully disconnects from the given node.
     pub fn disconnect<T: Into<Node>>(node: T) {
         let node = node.into();
 
-        let Node::Remote(name, address) = node else {
+        if !matches!(node, Node::Remote(_, _)) {
             panic!("Can't disconnect from self!");
-        };
+        }
 
-        node_disconnect((name, address).into());
+        node_disconnect(node);
     }
 
     /// Forcefully disconnects, and forgets this node completely.
@@ -60,11 +60,11 @@ impl Node {
     pub fn forget<T: Into<Node>>(node: T) {
         let node = node.into();
 
-        let Node::Remote(name, address) = node else {
+        if !matches!(node, Node::Remote(_, _)) {
             panic!("Can't forget from self!");
-        };
+        }
 
-        node_forget((name, address).into());
+        node_forget(node);
     }
 
     /// Sets the node cookie used to secure node connections.
@@ -138,7 +138,7 @@ impl From<&str> for Node {
 
 impl From<String> for Node {
     fn from(value: String) -> Self {
-        value.as_str().into()
+        Node::from(value.as_str())
     }
 }
 

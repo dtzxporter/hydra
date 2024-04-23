@@ -74,7 +74,7 @@ impl Serialize for Pid {
                     } else {
                         match node_lookup_local() {
                             Some((name, address)) => {
-                                let node: Node = (name.as_str(), address).into();
+                                let node = Node::from((name.as_str(), address));
 
                                 if node == *target {
                                     PidWire::Local(*id)
@@ -88,7 +88,7 @@ impl Serialize for Pid {
                 }
                 Self::Remote(id, node) => match node_lookup_remote(*node) {
                     Some((name, address)) => {
-                        let node: Node = (name.as_str(), address).into();
+                        let node = Node::from((name.as_str(), address));
 
                         if node == *target {
                             PidWire::Local(*id)
@@ -115,7 +115,7 @@ impl<'de> Deserialize<'de> for Pid {
         match node {
             PidWire::Local(id) => Ok(Self::Local(id)),
             PidWire::Remote(id, name, address) => {
-                let node = node_register((name, address).into(), false);
+                let node = node_register(Node::from((name, address)), false);
 
                 Ok(Self::Remote(id, node))
             }
