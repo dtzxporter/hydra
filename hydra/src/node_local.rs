@@ -3,10 +3,12 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 
 use crate::node_remote_accepter;
+use crate::Message;
 use crate::NodeOptions;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
+use crate::SystemMessage;
 
 pub struct NodeLocalSupervisor {
     pub name: String,
@@ -44,5 +46,18 @@ pub async fn node_local_supervisor(name: String, options: NodeOptions) {
         process: Process::current(),
     });
 
-    Process::spawn_link(node_local_listener(supervisor.clone()));
+    let listener = Process::spawn_link(node_local_listener(supervisor.clone()));
+
+    loop {
+        let message = Process::receive::<()>().await;
+
+        match message {
+            Message::System(SystemMessage::Exit(pid, _)) => {
+                if pid == listener {
+                    panic!("Lost the local node listener!");
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
 }

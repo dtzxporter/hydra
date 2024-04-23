@@ -145,12 +145,34 @@ pub fn node_register(node: Node, connect: bool) -> u64 {
 
     let entry = match NODE_MAP.entry((name.clone(), address).into()) {
         Entry::Vacant(entry) => entry,
-        Entry::Occupied(entry) => return *entry.get(),
+        Entry::Occupied(entry) => {
+            let node = *entry.get();
+
+            if connect {
+                NODE_REGISTRATIONS.alter(&node, |_, mut value| {
+                    if value.supervisor.is_none() {
+                        value.supervisor = None;
+                        value.state = NodeState::Pending;
+
+                        panic!("actually connect lol");
+                    }
+
+                    value
+                });
+            }
+
+            return node;
+        }
     };
 
     let next_id = NODE_ID.fetch_add(1, Ordering::Relaxed);
 
     if connect {
+        NODE_REGISTRATIONS.insert(
+            next_id,
+            NodeRegistration::new(None, NodeState::Pending, name, address),
+        );
+
         panic!("actually connect lol");
     } else {
         NODE_REGISTRATIONS.insert(

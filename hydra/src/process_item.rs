@@ -8,7 +8,6 @@ use crate::SystemMessage;
 
 pub enum ProcessItem {
     /// Sent from a remote process in a different userspace.
-    #[allow(unused)]
     UserRemoteMessage(Vec<u8>),
     /// Sent from a process in the same userspace.
     UserLocalMessage(Box<dyn std::any::Any + Send>),

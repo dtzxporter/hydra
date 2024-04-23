@@ -181,3 +181,7 @@ pub async fn node_remote_accepter(socket: TcpStream, supervisor: Arc<NodeLocalSu
 
     panic!("Received incorrect frame for node handshake!");
 }
+
+pub async fn node_remote_connector(node: Node) {
+    //
+}

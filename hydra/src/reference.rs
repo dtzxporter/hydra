@@ -43,12 +43,6 @@ impl Reference {
         matches!(self, Self::Local(_))
     }
 
-    /// Returns true if this [Reference] is a remote process.
-    #[allow(unused)]
-    pub(crate) const fn is_remote(&self) -> bool {
-        matches!(self, Self::Remote(_, _))
-    }
-
     /// Gets the id part of this [Reference].
     pub(crate) const fn id(&self) -> u64 {
         match self {
