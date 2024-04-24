@@ -6,6 +6,7 @@ use crate::Message;
 use crate::Reference;
 use crate::SystemMessage;
 
+/// Represents a single unit of computation or a message for the process.
 pub enum ProcessItem {
     /// Sent from a remote process in a different userspace.
     UserRemoteMessage(Vec<u8>),
