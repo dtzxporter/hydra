@@ -110,6 +110,9 @@ async fn main() {
                     MyMessage::Bye("wins".as_bytes().to_vec(), Local::new(Instant::now())),
                 );
             }
+            Message::System(SystemMessage::NodeDown(node, monitor)) => {
+                println!("Got node down: {:?} monitor: {:?}", node, monitor);
+            }
         }
     }
 }

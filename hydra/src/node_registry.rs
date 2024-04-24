@@ -21,12 +21,21 @@ use crate::NodeRemoteSenderMessage;
 use crate::NodeState;
 use crate::Pid;
 use crate::Process;
+use crate::Reference;
 
 /// Represents the node id always used for the local node.
 const LOCAL_NODE_ID: u64 = 0;
 
 /// Represents a node id that will never be allocated.
 pub const INVALID_NODE_ID: u64 = u64::MAX;
+
+/// The type of node monitor that was installed.
+enum NodeMonitor {
+    /// The monitor is explicitly for the node itself.
+    ForNode(Reference),
+    /// The monitor is installed on behalf of a remote process monitor.
+    ForProcessMonitor(Reference, u64),
+}
 
 // When a pid is serialized over the wire, we need to lookup it's node@ip:port combination.
 // If it's already in the registry, we need to get it's node id, else
@@ -35,6 +44,9 @@ static NODE_REGISTRATIONS: Lazy<DashMap<u64, NodeRegistration>> = Lazy::new(Dash
 
 /// A collection of node:id into the node registrations.
 static NODE_MAP: Lazy<DashMap<Node, u64>> = Lazy::new(DashMap::new);
+
+/// A collection of node monitors installed.
+static NODE_MONITORS: Lazy<DashMap<Node, NodeMonitor>> = Lazy::new(DashMap::new);
 
 /// A collection of node:vec<msg> pending messages for a node.
 static NODE_PENDING_MESSAGES: Lazy<DashMap<Node, Vec<Frame>>> = Lazy::new(DashMap::new);

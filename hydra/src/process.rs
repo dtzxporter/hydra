@@ -33,6 +33,7 @@ use crate::Message;
 use crate::Pid;
 use crate::ProcessFlags;
 use crate::ProcessItem;
+use crate::ProcessMonitor;
 use crate::ProcessReceiver;
 use crate::ProcessRegistration;
 use crate::Receivable;
@@ -57,7 +58,7 @@ pub struct Process {
     /// A collection of process aliases.
     pub(crate) aliases: RefCell<BTreeSet<u64>>,
     /// A collection of process monitor references.
-    pub(crate) monitors: RefCell<BTreeMap<Reference, Option<Pid>>>,
+    pub(crate) monitors: RefCell<BTreeMap<Reference, ProcessMonitor>>,
 }
 
 tokio::task_local! {
@@ -386,7 +387,7 @@ impl Process {
     ///
     /// If a monitor message was sent to the process already but was not received, it will be discarded automatically.
     pub fn demonitor(monitor: Reference) {
-        let Some(Some(pid)) =
+        let Some(ProcessMonitor::ForProcess(Some(pid))) =
             PROCESS.with(|process| process.monitors.borrow_mut().remove(&monitor))
         else {
             return;
@@ -495,7 +496,12 @@ where
     if monitor {
         let monitor = Reference::new();
 
-        PROCESS.with(|process| process.monitors.borrow_mut().insert(monitor, Some(pid)));
+        PROCESS.with(|process| {
+            process
+                .monitors
+                .borrow_mut()
+                .insert(monitor, ProcessMonitor::ForProcess(Some(pid)))
+        });
 
         monitor_create(pid, monitor, Process::current(), pid.into());
 
@@ -552,7 +558,12 @@ where
     if monitor {
         let monitor = Reference::new();
 
-        PROCESS.with(|process| process.monitors.borrow_mut().insert(monitor, Some(pid)));
+        PROCESS.with(|process| {
+            process
+                .monitors
+                .borrow_mut()
+                .insert(monitor, ProcessMonitor::ForProcess(Some(pid)))
+        });
 
         monitor_create(pid, monitor, Process::current(), pid.into());
 

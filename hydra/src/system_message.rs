@@ -1,5 +1,6 @@
 use crate::Dest;
 use crate::ExitReason;
+use crate::Node;
 use crate::Pid;
 use crate::Reference;
 
@@ -10,4 +11,6 @@ pub enum SystemMessage {
     Exit(Pid, ExitReason),
     /// A monitored process went down.
     ProcessDown(Dest, Reference, ExitReason),
+    /// A monitored node went down.
+    NodeDown(Node, Reference),
 }

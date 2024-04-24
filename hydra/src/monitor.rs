@@ -8,6 +8,7 @@ use crate::Dest;
 use crate::ExitReason;
 use crate::Pid;
 use crate::ProcessItem;
+use crate::ProcessMonitor;
 use crate::Reference;
 use crate::PROCESS;
 use crate::PROCESS_REGISTRY;
@@ -33,21 +34,28 @@ pub fn monitor_destroy(process: Pid, reference: Reference) {
 }
 
 /// Destroys all monitors registered for the given reference, pid combination.
-pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a Option<Pid>)>>(
+pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a ProcessMonitor)>>(
     monitors: M,
 ) {
-    for (reference, pid) in monitors {
-        let Some(pid) = pid else {
-            continue;
-        };
+    for (reference, monitor) in monitors {
+        match monitor {
+            ProcessMonitor::ForProcess(pid) => {
+                let Some(pid) = pid else {
+                    continue;
+                };
 
-        if pid.is_local() {
-            MONITORS.alter(&pid.id(), |_, mut value| {
-                value.remove(reference);
-                value
-            });
-        } else {
-            unimplemented!("Remote process monitor not supported!")
+                if pid.is_local() {
+                    MONITORS.alter(&pid.id(), |_, mut value| {
+                        value.remove(reference);
+                        value
+                    });
+                } else {
+                    unimplemented!("Remote process monitor not supported!")
+                }
+            }
+            ProcessMonitor::ForNode(node) => {
+                unimplemented!("Not supported monitor destroy {:?}", node)
+            }
         }
     }
 }
@@ -79,7 +87,12 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                 unimplemented!("Remote process monitor unsupported!");
             }
 
-            PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, Some(pid)));
+            PROCESS.with(|process| {
+                process
+                    .monitors
+                    .borrow_mut()
+                    .insert(reference, ProcessMonitor::ForProcess(Some(pid)))
+            });
 
             let registry = PROCESS_REGISTRY.read().unwrap();
 
@@ -93,13 +106,23 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
             let registry = PROCESS_REGISTRY.read().unwrap();
 
             let Some(process) = registry.named_processes.get(name.as_ref()) else {
-                PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, None));
+                PROCESS.with(|process| {
+                    process
+                        .monitors
+                        .borrow_mut()
+                        .insert(reference, ProcessMonitor::ForProcess(None))
+                });
                 return send_process_down(dest);
             };
 
             let pid = Pid::local(*process);
 
-            PROCESS.with(|process| process.monitors.borrow_mut().insert(reference, Some(pid)));
+            PROCESS.with(|process| {
+                process
+                    .monitors
+                    .borrow_mut()
+                    .insert(reference, ProcessMonitor::ForProcess(Some(pid)))
+            });
 
             if registry.processes.contains_key(process) {
                 monitor_create(pid, reference, from, dest);

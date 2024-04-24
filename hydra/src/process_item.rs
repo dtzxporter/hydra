@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Message;
+use crate::Node;
 use crate::Reference;
 use crate::SystemMessage;
 
@@ -16,6 +17,8 @@ pub enum ProcessItem {
     SystemMessage(SystemMessage),
     /// Sent from a monitor when a process goes down.
     MonitorProcessDown(Dest, Reference, ExitReason),
+    /// Sent from a monitor when a node goes down.
+    MonitorNodeDown(Node, Reference),
     /// Sent from the system when an alias is deactivated externally.
     AliasDeactivated(u64),
 }
@@ -49,6 +52,9 @@ impl Debug for ProcessItem {
                 "MonitorProcessDown({:?}, {:?}, {:?})",
                 dest, reference, exit_reason
             ),
+            Self::MonitorNodeDown(node, reference) => {
+                write!(f, "MonitorNodeDown({:?}, {:?})", node, reference)
+            }
             Self::AliasDeactivated(alias) => write!(f, "AliasDeactivated({:?})", alias),
         }
     }

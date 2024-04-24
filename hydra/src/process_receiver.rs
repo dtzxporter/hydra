@@ -114,6 +114,7 @@ fn convert_item<T: Receivable>(item: ProcessItem) -> Message<T> {
         ProcessItem::SystemMessage(system) => Message::System(system),
         // Handled during item processing.
         ProcessItem::MonitorProcessDown(_, _, _) => unreachable!(),
+        ProcessItem::MonitorNodeDown(_, _) => unreachable!(),
         ProcessItem::AliasDeactivated(_) => unreachable!(),
     }
 }
@@ -159,6 +160,20 @@ fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<
             }
 
             let system = SystemMessage::ProcessDown(dest.clone(), *reference, exit_reason.clone());
+
+            // Make sure processing only happens one time.
+            *item = ProcessItem::SystemMessage(system.clone());
+
+            Ok(Some(Message::System(system)))
+        }
+        ProcessItem::MonitorNodeDown(node, reference) => {
+            if PROCESS.with(|process| process.monitors.borrow_mut().remove(reference).is_none()) {
+                // If the process has already called demonitor, discard the message.
+                // This prevents the need for a flush option.
+                return Ok(None);
+            }
+
+            let system = SystemMessage::NodeDown(node.clone(), *reference);
 
             // Make sure processing only happens one time.
             *item = ProcessItem::SystemMessage(system.clone());
