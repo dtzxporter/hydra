@@ -11,6 +11,7 @@ use once_cell::sync::Lazy;
 use crate::frame::Frame;
 
 use crate::node_local_supervisor;
+use crate::node_remote_connector;
 use crate::ExitReason;
 use crate::Local;
 use crate::Node;
@@ -20,6 +21,9 @@ use crate::NodeRemoteSenderMessage;
 use crate::NodeState;
 use crate::Pid;
 use crate::Process;
+
+/// Represents the node id always used for the local node.
+const LOCAL_NODE_ID: u64 = 0;
 
 /// Represents a node id that will never be allocated.
 pub const INVALID_NODE_ID: u64 = u64::MAX;
@@ -55,7 +59,7 @@ pub fn node_local_start(name: String, options: NodeOptions) -> Pid {
     let supervisor = Process::spawn(node_local_supervisor(name.clone(), options));
 
     NODE_REGISTRATIONS.insert(
-        0,
+        LOCAL_NODE_ID,
         NodeRegistration::new(
             Some(supervisor),
             NodeState::Current,
@@ -64,7 +68,7 @@ pub fn node_local_start(name: String, options: NodeOptions) -> Pid {
         ),
     );
 
-    entry.insert(0);
+    entry.insert(LOCAL_NODE_ID);
 
     supervisor
 }
@@ -77,13 +81,20 @@ pub fn node_local_stop() {
 
     NODE_MAP.clear();
 
-    if let Some(entry) = NODE_REGISTRATIONS.get(&0) {
+    if let Some(entry) = NODE_REGISTRATIONS.get(&LOCAL_NODE_ID) {
         if let Some(supervisor) = entry.supervisor {
             Process::exit(supervisor, ExitReason::Kill);
         }
     }
 
     NODE_REGISTRATIONS.clear();
+}
+
+/// Returns the process responsible for the local node.
+pub fn node_local_process() -> Option<Pid> {
+    NODE_REGISTRATIONS
+        .get(&LOCAL_NODE_ID)
+        .and_then(|process| process.supervisor)
 }
 
 /// Sets the send and receive processes for a given node and flushes any pending messages.
@@ -186,37 +197,37 @@ pub fn node_register(node: Node, connect: bool) -> u64 {
         panic!("Can't register a local node!");
     };
 
-    let entry = match NODE_MAP.entry(Node::from((name.clone(), address))) {
+    let node = Node::from((name.clone(), address));
+
+    let entry = match NODE_MAP.entry(node.clone()) {
         Entry::Vacant(entry) => entry,
         Entry::Occupied(entry) => {
-            let node = *entry.get();
+            let id = *entry.get();
 
             if connect {
-                NODE_REGISTRATIONS.alter(&node, |_, mut value| {
+                NODE_REGISTRATIONS.alter(&id, |_, mut value| {
                     if value.supervisor.is_none() {
-                        value.supervisor = None;
+                        value.supervisor = Some(Process::spawn(node_remote_connector(node)));
                         value.state = NodeState::Pending;
-
-                        panic!("actually connect lol");
                     }
 
                     value
                 });
             }
 
-            return node;
+            return id;
         }
     };
 
     let next_id = NODE_ID.fetch_add(1, Ordering::Relaxed);
 
     if connect {
+        let supervisor = Process::spawn(node_remote_connector(node));
+
         NODE_REGISTRATIONS.insert(
             next_id,
-            NodeRegistration::new(None, NodeState::Pending, name, address),
+            NodeRegistration::new(Some(supervisor), NodeState::Pending, name, address),
         );
-
-        panic!("actually connect lol");
     } else {
         NODE_REGISTRATIONS.insert(
             next_id,
@@ -295,7 +306,7 @@ pub fn node_forget(node: Node) {
 /// Looks up the node information for the local node.
 pub fn node_lookup_local() -> Option<(String, SocketAddr)> {
     NODE_REGISTRATIONS
-        .get(&0)
+        .get(&LOCAL_NODE_ID)
         .map(|registration| (registration.name.clone(), registration.broadcast_address))
 }
 

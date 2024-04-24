@@ -23,6 +23,7 @@ use crate::frame::Pong;
 
 use crate::node_accept;
 use crate::node_forward_send;
+use crate::node_local_process;
 use crate::node_set_send_recv;
 use crate::Local;
 use crate::Message;
@@ -40,6 +41,12 @@ pub enum NodeRemoteSenderMessage {
     SendFrame(Local<Frame>),
     /// Occurs when a bunch of new outbound frames are ready to be sent over the socket.
     SendFrames(Local<Vec<Frame>>),
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum NodeRemoteConnectorMessage {
+    /// Occurs when the connector receives the local node supervisor information.
+    LocalNodeSupervisor(Local<Arc<NodeLocalSupervisor>>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -193,4 +200,19 @@ pub async fn node_remote_accepter(socket: TcpStream, supervisor: Arc<NodeLocalSu
     }
 
     panic!("Received incorrect frame for node handshake!");
+}
+
+pub async fn node_remote_connector(node: Node) {
+    let local = node_local_process().expect("Local node not started!");
+
+    Process::link(local);
+    Process::send(local, ());
+
+    let Message::User(NodeRemoteConnectorMessage::LocalNodeSupervisor(supervisor)) =
+        Process::receive::<NodeRemoteConnectorMessage>().await
+    else {
+        panic!("Received unexpected message in remote connector!");
+    };
+
+    // Using the supervisor, we need to connect to the socket.
 }
