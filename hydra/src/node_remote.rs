@@ -3,7 +3,6 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde::Serialize;
 
-use tokio::net::TcpSocket;
 use tokio::net::TcpStream;
 
 use tokio_util::codec::Framed;
@@ -63,10 +62,25 @@ struct NodeRemoteSupervisor {
     local_supervisor: Arc<NodeLocalSupervisor>,
 }
 
+struct NodeRemoteConnector {
+    node: Node,
+    process: Pid,
+}
+
 impl Drop for NodeRemoteSupervisor {
     fn drop(&mut self) {
         // We need to clean up this node!
         let _ = self.node;
+
+        unimplemented!()
+    }
+}
+
+impl Drop for NodeRemoteConnector {
+    fn drop(&mut self) {
+        // We need to clean up this connector.
+        let _ = self.node;
+        let _ = self.process;
 
         unimplemented!()
     }
@@ -137,19 +151,19 @@ async fn node_remote_supervisor(
     hello: Hello,
     supervisor: Arc<NodeLocalSupervisor>,
 ) {
-    Process::link(supervisor.process);
-
     let node = Node::from((hello.name, hello.broadcast_address));
-
-    if !node_accept(node.clone(), Process::current()) {
-        panic!("Not accepting node supervisor!");
-    };
 
     let supervisor = Arc::new(NodeRemoteSupervisor {
         node: node.clone(),
         process: Process::current(),
         local_supervisor: supervisor,
     });
+
+    Process::link(supervisor.process);
+
+    if !node_accept(node.clone(), Process::current()) {
+        panic!("Not accepting node supervisor!");
+    };
 
     let sender = Process::spawn_link(node_remote_sender(writer, supervisor.clone()));
     let receiver = Process::spawn_link(node_remote_receiver(reader, supervisor.clone()));
@@ -205,6 +219,11 @@ pub async fn node_remote_accepter(socket: TcpStream, supervisor: Arc<NodeLocalSu
 }
 
 pub async fn node_remote_connector(node: Node) {
+    let connector = NodeRemoteConnector {
+        node: node.clone(),
+        process: Process::current(),
+    };
+
     let local = node_local_process().expect("Local node not started!");
 
     Process::link(local);
@@ -220,10 +239,44 @@ pub async fn node_remote_connector(node: Node) {
         panic!("Received unexpected message in remote connector!");
     };
 
+    let address = node
+        .address()
+        .expect("Must have an address for a remote node!");
+
     let handshake_timeout = supervisor.options.handshake_timeout;
 
-    let socket = timeout(handshake_timeout, TcpStream::connect(""))
+    let socket = timeout(handshake_timeout, TcpStream::connect(address))
         .await
         .expect("Timed out while connecting to the node!")
         .expect("Failed to connect to the node!");
+
+    let framed = Framed::new(socket, Codec::new());
+    let (mut writer, mut reader) = framed.split();
+
+    let hello = Hello::new(
+        supervisor.name.clone(),
+        supervisor.options.broadcast_address,
+    );
+
+    timeout(handshake_timeout, writer.send(hello.into()))
+        .await
+        .expect("Timed out while sending hello handshake packet!")
+        .expect("Failed to send hello handshake packet!");
+
+    let frame = timeout(handshake_timeout, reader.next())
+        .await
+        .expect("Timed out while receiving hello handshake packet!")
+        .unwrap()
+        .expect("Failed to receive hello handshake packet!");
+
+    if let Frame::Hello(mut hello) = frame {
+        if hello.validate() {
+            std::mem::forget(connector);
+            return node_remote_supervisor(writer, reader, hello, supervisor.into_inner()).await;
+        } else {
+            panic!("Node handshake failed validation!");
+        }
+    }
+
+    panic!("Received incorrect frame for node handshake!");
 }

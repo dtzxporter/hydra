@@ -32,6 +32,22 @@ impl Node {
         Node::Local
     }
 
+    /// Returns the adddress of the node if it's a remote node.
+    pub fn address(&self) -> Option<SocketAddr> {
+        match self {
+            Node::Local => None,
+            Node::Remote(_, address) => Some(*address),
+        }
+    }
+
+    /// Returns the name of the node if it's a remote node.
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Node::Local => None,
+            Node::Remote(name, _) => Some(name),
+        }
+    }
+
     /// Connects to the given node if we're not already connected.
     pub fn connect<T: Into<Node>>(node: T) {
         let node = node.into();

@@ -172,8 +172,10 @@ pub fn node_accept(node: Node, supervisor: Pid) -> bool {
 
             NODE_REGISTRATIONS.alter(entry.get(), |_, mut value| {
                 if matches!(value.state, NodeState::Pending) {
-                    if let Some(supervisor) = value.supervisor.take() {
-                        Process::exit(supervisor, ExitReason::Kill);
+                    if let Some(current_supervisor) = value.supervisor.take() {
+                        if supervisor != current_supervisor {
+                            Process::exit(current_supervisor, ExitReason::Kill);
+                        }
                     }
                 }
 
