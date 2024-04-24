@@ -37,7 +37,7 @@ impl Drop for NodeLocalSupervisor {
 async fn node_local_listener(supervisor: Arc<NodeLocalSupervisor>) {
     let listener = TcpListener::bind(supervisor.options.listen_address)
         .await
-        .unwrap();
+        .expect("Failed to bind socket for local node listener!");
 
     loop {
         let Ok((socket, _)) = listener.accept().await else {
