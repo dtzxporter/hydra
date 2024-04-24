@@ -88,6 +88,7 @@ pub fn node_local_stop() {
     }
 
     NODE_REGISTRATIONS.clear();
+    NODE_PENDING_MESSAGES.clear();
 }
 
 /// Returns the process responsible for the local node.

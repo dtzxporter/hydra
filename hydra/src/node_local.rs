@@ -1,14 +1,25 @@
 use std::sync::Arc;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use tokio::net::TcpListener;
 
 use crate::node_remote_accepter;
+use crate::Local;
 use crate::Message;
 use crate::NodeOptions;
+use crate::NodeRemoteConnectorMessage;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
 use crate::SystemMessage;
+
+#[derive(Serialize, Deserialize)]
+pub enum NodeLocalSupervisorMessage {
+    /// Occurs when a connector process requests the supervisor.
+    RequestLocalSupervisor(Pid),
+}
 
 pub struct NodeLocalSupervisor {
     pub name: String,
@@ -49,9 +60,17 @@ pub async fn node_local_supervisor(name: String, options: NodeOptions) {
     let listener = Process::spawn_link(node_local_listener(supervisor.clone()));
 
     loop {
-        let message = Process::receive::<()>().await;
+        let message = Process::receive::<NodeLocalSupervisorMessage>().await;
 
         match message {
+            Message::User(NodeLocalSupervisorMessage::RequestLocalSupervisor(process)) => {
+                let supervisor = Local::new(supervisor.clone());
+
+                Process::send(
+                    process,
+                    NodeRemoteConnectorMessage::LocalNodeSupervisor(supervisor),
+                );
+            }
             Message::System(SystemMessage::Exit(pid, _)) => {
                 if pid == listener {
                     panic!("Lost the local node listener!");

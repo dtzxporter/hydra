@@ -3,6 +3,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde::Serialize;
 
+use tokio::net::TcpSocket;
 use tokio::net::TcpStream;
 
 use tokio_util::codec::Framed;
@@ -29,6 +30,7 @@ use crate::Local;
 use crate::Message;
 use crate::Node;
 use crate::NodeLocalSupervisor;
+use crate::NodeLocalSupervisorMessage;
 use crate::Pid;
 use crate::Process;
 
@@ -206,7 +208,11 @@ pub async fn node_remote_connector(node: Node) {
     let local = node_local_process().expect("Local node not started!");
 
     Process::link(local);
-    Process::send(local, ());
+
+    Process::send(
+        local,
+        NodeLocalSupervisorMessage::RequestLocalSupervisor(Process::current()),
+    );
 
     let Message::User(NodeRemoteConnectorMessage::LocalNodeSupervisor(supervisor)) =
         Process::receive::<NodeRemoteConnectorMessage>().await
@@ -214,5 +220,10 @@ pub async fn node_remote_connector(node: Node) {
         panic!("Received unexpected message in remote connector!");
     };
 
-    // Using the supervisor, we need to connect to the socket.
+    let handshake_timeout = supervisor.options.handshake_timeout;
+
+    let socket = timeout(handshake_timeout, TcpStream::connect(""))
+        .await
+        .expect("Timed out while connecting to the node!")
+        .expect("Failed to connect to the node!");
 }
