@@ -91,6 +91,13 @@ pub fn node_local_stop() {
     NODE_PENDING_MESSAGES.clear();
 }
 
+/// Cleans up distribution information when the local node goes down unexpectedly.
+pub fn node_local_panic() {
+    NODE_MAP.clear();
+    NODE_REGISTRATIONS.clear();
+    NODE_PENDING_MESSAGES.clear();
+}
+
 /// Returns the process responsible for the local node.
 pub fn node_local_process() -> Option<Pid> {
     NODE_REGISTRATIONS

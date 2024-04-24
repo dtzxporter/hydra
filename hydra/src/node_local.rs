@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use tokio::net::TcpListener;
 
+use crate::node_local_panic;
 use crate::node_remote_accepter;
 use crate::Local;
 use crate::Message;
@@ -29,8 +30,7 @@ pub struct NodeLocalSupervisor {
 
 impl Drop for NodeLocalSupervisor {
     fn drop(&mut self) {
-        // We need to clean up this node!
-        unimplemented!()
+        node_local_panic();
     }
 }
 
