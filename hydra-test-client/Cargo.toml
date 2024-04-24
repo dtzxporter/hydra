@@ -1,0 +1,11 @@
+[package]
+name = "hydra-test-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hydra = { path = "../hydra", features = ["json"] }
+hydra-platform = { path = "../hydra-platform" }
+
+tokio.workspace = true
+serde.workspace = true

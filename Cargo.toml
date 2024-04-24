@@ -1,5 +1,5 @@
 [workspace]
-members = ["hydra", "hydra-macros", "hydra-platform", "hydra-test"]
+members = ["hydra", "hydra-macros", "hydra-platform", "hydra-test", "hydra-test-client", "hydra-test-main"]
 resolver = "2"
 
 [workspace.dependencies]
