@@ -210,6 +210,7 @@ pub async fn node_remote_accepter(socket: TcpStream, supervisor: Arc<NodeLocalSu
     if let Frame::Hello(mut hello) = frame {
         if hello.validate() {
             Process::spawn(node_remote_supervisor(writer, reader, hello, supervisor));
+            return;
         } else {
             panic!("Node handshake failed validation!");
         }
