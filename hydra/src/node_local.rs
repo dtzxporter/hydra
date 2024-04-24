@@ -71,9 +71,9 @@ pub async fn node_local_supervisor(name: String, options: NodeOptions) {
                     NodeRemoteConnectorMessage::LocalNodeSupervisor(supervisor),
                 );
             }
-            Message::System(SystemMessage::Exit(pid, _)) => {
+            Message::System(SystemMessage::Exit(pid, exit_reason)) => {
                 if pid == listener {
-                    panic!("Lost the local node listener!");
+                    panic!("Lost the local node listener: {:?}!", exit_reason);
                 }
             }
             _ => unreachable!(),
