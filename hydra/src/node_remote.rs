@@ -24,6 +24,8 @@ use crate::frame::Pong;
 use crate::node_accept;
 use crate::node_forward_send;
 use crate::node_local_process;
+use crate::node_remote_connector_down;
+use crate::node_remote_supervisor_down;
 use crate::node_set_send_recv;
 use crate::Local;
 use crate::Message;
@@ -69,20 +71,13 @@ struct NodeRemoteConnector {
 
 impl Drop for NodeRemoteSupervisor {
     fn drop(&mut self) {
-        // We need to clean up this node!
-        let _ = self.node;
-
-        unimplemented!()
+        node_remote_supervisor_down(self.node.clone(), self.process);
     }
 }
 
 impl Drop for NodeRemoteConnector {
     fn drop(&mut self) {
-        // We need to clean up this connector.
-        let _ = self.node;
-        let _ = self.process;
-
-        unimplemented!()
+        node_remote_connector_down(self.node.clone(), self.process);
     }
 }
 

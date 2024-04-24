@@ -250,6 +250,58 @@ pub fn node_register(node: Node, connect: bool) -> u64 {
     next_id
 }
 
+/// Triggered when a remote node supervisor goes down unexpectedly.
+pub fn node_remote_supervisor_down(node: Node, process: Pid) {
+    let Some(id) = NODE_MAP.get(&node) else {
+        return;
+    };
+
+    NODE_REGISTRATIONS.alter(&id, |_, mut value| {
+        if value
+            .supervisor
+            .is_some_and(|supervisor| supervisor != process)
+        {
+            return value;
+        }
+
+        value.supervisor = None;
+        value.sender = None;
+        value.receiver = None;
+        value.state = NodeState::Known;
+
+        // TODO: Pop the monitors and trigger them.
+        NODE_PENDING_MESSAGES.remove(&node);
+
+        value
+    });
+}
+
+/// Triggered when a remote node connector goes down unexpectedly.
+pub fn node_remote_connector_down(node: Node, process: Pid) {
+    let Some(id) = NODE_MAP.get(&node) else {
+        return;
+    };
+
+    NODE_REGISTRATIONS.alter(&id, |_, mut value| {
+        if value
+            .supervisor
+            .is_some_and(|supervisor| supervisor != process)
+        {
+            return value;
+        }
+
+        value.supervisor = None;
+        value.sender = None;
+        value.receiver = None;
+        value.state = NodeState::Known;
+
+        // TODO: Pop the monitors and trigger them.
+        NODE_PENDING_MESSAGES.remove(&node);
+
+        value
+    });
+}
+
 /// Returns the node list excluding the local node.
 pub fn node_list() -> Vec<Node> {
     NODE_MAP
@@ -280,7 +332,7 @@ pub fn node_list_filtered(state: NodeState) -> Vec<Node> {
 
 /// Disconnects a connected node, leaving it as a known node.
 pub fn node_disconnect(node: Node) {
-    let Some(id) = NODE_MAP.get(&node).map(|id| *id) else {
+    let Some(id) = NODE_MAP.get(&node) else {
         return;
     };
 

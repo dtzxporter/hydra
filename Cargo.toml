@@ -26,3 +26,6 @@ lto = "fat"
 strip = true
 panic = "abort"
 codegen-units = 1
+
+[patch.crates-io]
+dashmap = { git = "https://github.com/dtzxporter/dashmap", branch = "fix-abort-on-panic-when-already-in-panic" }
