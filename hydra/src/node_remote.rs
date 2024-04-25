@@ -24,7 +24,6 @@ use crate::frame::Pong;
 use crate::node_accept;
 use crate::node_forward_send;
 use crate::node_local_process;
-use crate::node_remote_connector_down;
 use crate::node_remote_supervisor_down;
 use crate::node_set_send_recv;
 use crate::Local;
@@ -77,7 +76,7 @@ impl Drop for NodeRemoteSupervisor {
 
 impl Drop for NodeRemoteConnector {
     fn drop(&mut self) {
-        node_remote_connector_down(self.node.clone(), self.process);
+        node_remote_supervisor_down(self.node.clone(), self.process);
     }
 }
 

@@ -13,6 +13,7 @@ use crate::frame::Frame;
 
 use crate::node_local_supervisor;
 use crate::node_remote_connector;
+use crate::Dest;
 use crate::ExitReason;
 use crate::Local;
 use crate::Node;
@@ -22,7 +23,9 @@ use crate::NodeRemoteSenderMessage;
 use crate::NodeState;
 use crate::Pid;
 use crate::Process;
+use crate::ProcessItem;
 use crate::Reference;
+use crate::PROCESS_REGISTRY;
 
 /// Represents the node id always used for the local node.
 const LOCAL_NODE_ID: u64 = 0;
@@ -33,9 +36,9 @@ pub const INVALID_NODE_ID: u64 = u64::MAX;
 /// The type of node monitor that was installed.
 enum NodeMonitor {
     /// The monitor is explicitly for the node itself.
-    ForNode(Reference, u64),
+    ForNode(u64),
     /// The monitor is installed on behalf of a remote process monitor.
-    ForProcessMonitor(Reference, u64),
+    ForProcessMonitor(u64, Dest),
 }
 
 // When a pid is serialized over the wire, we need to lookup it's node@ip:port combination.
@@ -283,33 +286,31 @@ pub fn node_remote_supervisor_down(node: Node, process: Pid) {
         value.receiver = None;
         value.state = NodeState::Known;
 
-        // TODO: Pop the monitors and trigger them.
-        NODE_PENDING_MESSAGES.remove(&node);
+        if let Some((_, monitors)) = NODE_MONITORS.remove(&node) {
+            let registry = PROCESS_REGISTRY.read().unwrap();
 
-        value
-    });
-}
-
-/// Triggered when a remote node connector goes down unexpectedly.
-pub fn node_remote_connector_down(node: Node, process: Pid) {
-    let Some(id) = NODE_MAP.get(&node) else {
-        return;
-    };
-
-    NODE_REGISTRATIONS.alter(&id, |_, mut value| {
-        if value
-            .supervisor
-            .is_some_and(|supervisor| supervisor != process)
-        {
-            return value;
+            for (reference, monitor) in monitors {
+                match monitor {
+                    NodeMonitor::ForNode(id) => {
+                        registry.processes.get(&id).map(|process| {
+                            process
+                                .sender
+                                .send(ProcessItem::MonitorNodeDown(node.clone(), reference))
+                        });
+                    }
+                    NodeMonitor::ForProcessMonitor(id, dest) => {
+                        registry.processes.get(&id).map(|process| {
+                            process.sender.send(ProcessItem::MonitorProcessDown(
+                                dest,
+                                reference,
+                                ExitReason::from("noconnection"),
+                            ))
+                        });
+                    }
+                }
+            }
         }
 
-        value.supervisor = None;
-        value.sender = None;
-        value.receiver = None;
-        value.state = NodeState::Known;
-
-        // TODO: Pop the monitors and trigger them.
         NODE_PENDING_MESSAGES.remove(&node);
 
         value
@@ -398,7 +399,7 @@ pub fn node_monitor_create(node: Node, reference: Reference, from: Pid) {
     NODE_MONITORS
         .entry(node)
         .or_default()
-        .insert(reference, NodeMonitor::ForNode(reference, from.id()));
+        .insert(reference, NodeMonitor::ForNode(from.id()));
 }
 
 /// Removes a monitor for the given node and reference.

@@ -72,7 +72,7 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                 .send(ProcessItem::MonitorProcessDown(
                     dest,
                     reference,
-                    "noproc".into(),
+                    ExitReason::from("noproc"),
                 ))
                 .unwrap()
         });
