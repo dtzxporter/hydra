@@ -13,6 +13,7 @@ use crate::node_lookup_remote;
 use crate::node_register;
 use crate::Node;
 use crate::INVALID_NODE_ID;
+use crate::LOCAL_NODE_ID;
 use crate::SERIALIZE_NODE;
 
 /// The representation of a [Reference] serialized for the wire.
@@ -58,6 +59,14 @@ impl Reference {
         match self {
             Self::Local(id) => id.get(),
             Self::Remote(id, _) => id.get(),
+        }
+    }
+
+    /// Gets the node part of this [Reference].
+    pub(crate) const fn node(&self) -> u64 {
+        match self {
+            Self::Local(_) => LOCAL_NODE_ID,
+            Self::Remote(_, node) => *node,
         }
     }
 }

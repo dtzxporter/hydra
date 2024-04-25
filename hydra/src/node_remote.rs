@@ -144,7 +144,12 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                 let node = node_register(supervisor.node.clone(), false);
 
                 let process = Pid::local(monitor.process_id);
-                let from = Pid::remote(monitor.from_id, node);
+
+                let from_id = monitor
+                    .from_id
+                    .expect("Must have a from_id for remote monitors!");
+
+                let from = Pid::remote(from_id, node);
                 let reference = Reference::remote(monitor.reference_id, node);
 
                 if monitor.install {

@@ -402,11 +402,7 @@ impl Process {
             return;
         };
 
-        if pid.is_local() {
-            monitor_destroy(pid, monitor);
-        } else {
-            unimplemented!("Remote process monitor unsupported!");
-        }
+        monitor_destroy(pid, monitor);
     }
 
     /// Returns the current process flags.

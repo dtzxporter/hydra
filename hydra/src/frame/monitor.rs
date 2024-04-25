@@ -6,13 +6,18 @@ use bincode::Encode;
 pub struct Monitor {
     pub install: bool,
     pub process_id: u64,
-    pub from_id: u64,
+    pub from_id: Option<u64>,
     pub reference_id: u64,
 }
 
 impl Monitor {
     /// Constructs a new instance of [Monitor] frame.
-    pub const fn new(install: bool, process_id: u64, from_id: u64, reference_id: u64) -> Self {
+    pub const fn new(
+        install: bool,
+        process_id: u64,
+        from_id: Option<u64>,
+        reference_id: u64,
+    ) -> Self {
         Self {
             install,
             process_id,

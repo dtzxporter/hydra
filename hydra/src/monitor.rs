@@ -37,10 +37,16 @@ pub fn monitor_create(process: Pid, reference: Reference, from: Pid, dest: Optio
 
 /// Destroys a monitor for the given local process and reference, returning `true` if the monitor existed.
 pub fn monitor_destroy(process: Pid, reference: Reference) {
-    MONITORS.alter(&process.id(), |_, mut value| {
-        value.remove(&reference);
-        value
-    });
+    if process.is_local() {
+        MONITORS.alter(&process.id(), |_, mut value| {
+            value.remove(&reference);
+            value
+        });
+    } else {
+        let monitor = Monitor::new(false, process.id(), None, reference.id());
+
+        node_send_frame(monitor.into(), reference.node());
+    }
 }
 
 /// Destroys all monitors registered for the given reference, monitor combination.
@@ -60,7 +66,9 @@ pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a Proces
                         value
                     });
                 } else {
-                    unimplemented!("Remote process monitor not supported!")
+                    let monitor = Monitor::new(false, pid.id(), None, reference.id());
+
+                    node_send_frame(monitor.into(), reference.node());
                 }
             }
             ProcessMonitor::ForNode(node) => {
@@ -118,7 +126,7 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                         let node = node_register(node, true);
 
                         node_send_frame(
-                            Monitor::new(true, pid.id(), from.id(), reference.id()).into(),
+                            Monitor::new(true, pid.id(), Some(from.id()), reference.id()).into(),
                             node,
                         );
                     }
