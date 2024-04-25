@@ -18,6 +18,7 @@ use futures_util::StreamExt;
 use crate::frame::Codec;
 use crate::frame::Frame;
 use crate::frame::Hello;
+use crate::frame::MonitorDown;
 use crate::frame::Ping;
 use crate::frame::Pong;
 
@@ -29,7 +30,9 @@ use crate::node_local_process;
 use crate::node_process_monitor_down;
 use crate::node_register;
 use crate::node_remote_supervisor_down;
+use crate::node_send_frame;
 use crate::node_set_send_recv;
+use crate::ExitReason;
 use crate::Local;
 use crate::Message;
 use crate::Node;
@@ -38,6 +41,7 @@ use crate::NodeLocalSupervisorMessage;
 use crate::Pid;
 use crate::Process;
 use crate::Reference;
+use crate::PROCESS_REGISTRY;
 
 type Reader = SplitStream<Framed<TcpStream, Codec>>;
 type Writer = SplitSink<Framed<TcpStream, Codec>, Frame>;
@@ -143,8 +147,6 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
             Frame::Monitor(monitor) => {
                 let node = node_register(supervisor.node.clone(), false);
 
-                let process = Pid::local(monitor.process_id);
-
                 let from_id = monitor
                     .from_id
                     .expect("Must have a from_id for remote monitors!");
@@ -153,9 +155,35 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                 let reference = Reference::remote(monitor.reference_id, node);
 
                 if monitor.install {
-                    monitor_create(process, reference, from, None);
+                    if let Some(id) = monitor.process_id {
+                        let process = Pid::local(id);
+
+                        if PROCESS_REGISTRY.read().unwrap().processes.contains_key(&id) {
+                            monitor_create(process, reference, from, None);
+                        } else {
+                            let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
+
+                            monitor_down.monitors.push(reference.id());
+
+                            node_send_frame(monitor_down.into(), node);
+                        }
+                    } else if let Some(name) = monitor.process_name {
+                        let registry = PROCESS_REGISTRY.read().unwrap();
+
+                        if let Some(id) = registry.named_processes.get(&name) {
+                            monitor_create(Pid::local(*id), reference, from, None);
+                        } else {
+                            let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
+
+                            monitor_down.monitors.push(reference.id());
+
+                            node_send_frame(monitor_down.into(), node);
+                        }
+                    } else {
+                        panic!("Must have either a process id or process name for monitor!");
+                    };
                 } else {
-                    monitor_destroy(process, reference);
+                    monitor_destroy(Pid::local(monitor.process_id.unwrap()), reference);
                 }
             }
             Frame::MonitorDown(monitor_down) => {

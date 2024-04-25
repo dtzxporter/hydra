@@ -13,7 +13,7 @@ pub fn serialize_value<T: Serialize>(value: &T) -> Vec<u8> {
     #[cfg(not(feature = "json"))]
     {
         let _ = value;
-        unimplemented!()
+        panic!("You must pick a feature to use for serialization!")
     }
 }
 
@@ -27,7 +27,7 @@ pub fn deserialize_slice<T: DeserializeOwned>(value: &[u8]) -> io::Result<T> {
 
     #[cfg(not(any(feature = "json")))]
     {
-        let _ = serialized;
-        unimplemented!()
+        let _ = value;
+        panic!("You must pick a feature to use for serialization!")
     }
 }

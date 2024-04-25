@@ -43,7 +43,7 @@ pub fn monitor_destroy(process: Pid, reference: Reference) {
             value
         });
     } else {
-        let monitor = Monitor::new(false, process.id(), None, reference.id());
+        let monitor = Monitor::new(false, Some(process.id()), None, None, reference.id());
 
         node_send_frame(monitor.into(), reference.node());
     }
@@ -66,7 +66,7 @@ pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a Proces
                         value
                     });
                 } else {
-                    let monitor = Monitor::new(false, pid.id(), None, reference.id());
+                    let monitor = Monitor::new(false, Some(pid.id()), None, None, reference.id());
 
                     node_send_frame(monitor.into(), reference.node());
                 }
@@ -124,11 +124,15 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                         node_process_monitor_create(node.clone(), reference, dest, from);
 
                         let node = node_register(node, true);
-
-                        node_send_frame(
-                            Monitor::new(true, pid.id(), Some(from.id()), reference.id()).into(),
-                            node,
+                        let monitor = Monitor::new(
+                            true,
+                            Some(pid.id()),
+                            None,
+                            Some(from.id()),
+                            reference.id(),
                         );
+
+                        node_send_frame(monitor.into(), node);
                     }
                     None => {
                         send_process_down(dest, ExitReason::from("noconnection"));
@@ -165,10 +169,28 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                     send_process_down(dest, ExitReason::from("noproc"));
                 }
             } else {
-                unimplemented!("Remote monitor not supported!")
+                PROCESS.with(|process| {
+                    process
+                        .monitors
+                        .borrow_mut()
+                        .insert(reference, ProcessMonitor::ForProcess(None))
+                });
+
+                node_process_monitor_create(node.clone(), reference, dest, from);
+
+                let node = node_register(node.clone(), true);
+                let monitor = Monitor::new(
+                    true,
+                    None,
+                    Some(name.into_owned()),
+                    Some(from.id()),
+                    reference.id(),
+                );
+
+                node_send_frame(monitor.into(), node);
             }
         }
-        Dest::Alias(_) => unimplemented!("Alias monitor not supported!"),
+        Dest::Alias(_) => panic!("Can not monitor an alias!"),
     }
 }
 
