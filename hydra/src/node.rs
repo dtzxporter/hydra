@@ -8,11 +8,17 @@ use crate::node_list;
 use crate::node_list_filtered;
 use crate::node_local_start;
 use crate::node_local_stop;
+use crate::node_monitor_create;
+use crate::node_monitor_destroy;
 use crate::node_register;
 use crate::node_set_cookie;
 use crate::NodeOptions;
 use crate::NodeState;
 use crate::Pid;
+use crate::Process;
+use crate::ProcessMonitor;
+use crate::Reference;
+use crate::PROCESS;
 
 /// Represents a local or remote node of processes.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -113,6 +119,38 @@ impl Node {
     /// Returns a list of all nodes in the system that match the given state.
     pub fn list_by_state(state: NodeState) -> Vec<Node> {
         node_list_filtered(state)
+    }
+
+    /// Monitors the given node. If we're not currently connected, an attempt is made to connect.
+    pub fn monitor<T: Into<Node>>(node: T) -> Reference {
+        let current = Process::current();
+        let node = node.into();
+
+        if !matches!(node, Node::Remote(_, _)) {
+            panic!("Can't monitor self!");
+        }
+
+        let reference = Reference::new();
+
+        node_monitor_create(node.clone(), reference, current);
+        node_register(node, true);
+
+        reference
+    }
+
+    /// Demonitors the monitor identified by the given reference.
+    pub fn demonitor(monitor: Reference) {
+        let Some(process_monitor) =
+            PROCESS.with(|process| process.monitors.borrow_mut().remove(&monitor))
+        else {
+            return;
+        };
+
+        let ProcessMonitor::ForNode(node) = process_monitor else {
+            panic!("Invalid node monitor reference!");
+        };
+
+        node_monitor_destroy(node, monitor);
     }
 }
 

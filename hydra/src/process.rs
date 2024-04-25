@@ -383,13 +383,21 @@ impl Process {
         reference
     }
 
-    /// Demonitors the monitor identifier by the given reference.
+    /// Demonitors the monitor identified by the given reference.
     ///
     /// If a monitor message was sent to the process already but was not received, it will be discarded automatically.
     pub fn demonitor(monitor: Reference) {
-        let Some(ProcessMonitor::ForProcess(Some(pid))) =
+        let Some(process_monitor) =
             PROCESS.with(|process| process.monitors.borrow_mut().remove(&monitor))
         else {
+            return;
+        };
+
+        let ProcessMonitor::ForProcess(pid) = process_monitor else {
+            panic!("Invalid process monitor reference!");
+        };
+
+        let Some(pid) = pid else {
             return;
         };
 

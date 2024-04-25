@@ -4,6 +4,7 @@ use dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 
+use crate::node_monitor_destroy;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Pid;
@@ -33,7 +34,7 @@ pub fn monitor_destroy(process: Pid, reference: Reference) {
     });
 }
 
-/// Destroys all monitors registered for the given reference, pid combination.
+/// Destroys all monitors registered for the given reference, monitor combination.
 pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a ProcessMonitor)>>(
     monitors: M,
 ) {
@@ -54,7 +55,7 @@ pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a Proces
                 }
             }
             ProcessMonitor::ForNode(node) => {
-                unimplemented!("Not supported monitor destroy {:?}", node)
+                node_monitor_destroy(node.clone(), *reference);
             }
         }
     }

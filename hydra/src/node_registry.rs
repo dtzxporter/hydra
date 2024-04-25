@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -32,7 +33,7 @@ pub const INVALID_NODE_ID: u64 = u64::MAX;
 /// The type of node monitor that was installed.
 enum NodeMonitor {
     /// The monitor is explicitly for the node itself.
-    ForNode(Reference),
+    ForNode(Reference, u64),
     /// The monitor is installed on behalf of a remote process monitor.
     ForProcessMonitor(Reference, u64),
 }
@@ -46,7 +47,8 @@ static NODE_REGISTRATIONS: Lazy<DashMap<u64, NodeRegistration>> = Lazy::new(Dash
 static NODE_MAP: Lazy<DashMap<Node, u64>> = Lazy::new(DashMap::new);
 
 /// A collection of node monitors installed.
-static NODE_MONITORS: Lazy<DashMap<Node, NodeMonitor>> = Lazy::new(DashMap::new);
+static NODE_MONITORS: Lazy<DashMap<Node, BTreeMap<Reference, NodeMonitor>>> =
+    Lazy::new(DashMap::new);
 
 /// A collection of node:vec<msg> pending messages for a node.
 static NODE_PENDING_MESSAGES: Lazy<DashMap<Node, Vec<Frame>>> = Lazy::new(DashMap::new);
@@ -389,6 +391,22 @@ pub fn node_lookup_remote(id: u64) -> Option<(String, SocketAddr)> {
     NODE_REGISTRATIONS
         .get(&id)
         .map(|registration| (registration.name.clone(), registration.broadcast_address))
+}
+
+/// Creates a monitor for he given node and reference from the given process.
+pub fn node_monitor_create(node: Node, reference: Reference, from: Pid) {
+    NODE_MONITORS
+        .entry(node)
+        .or_default()
+        .insert(reference, NodeMonitor::ForNode(reference, from.id()));
+}
+
+/// Removes a monitor for the given node and reference.
+pub fn node_monitor_destroy(node: Node, reference: Reference) {
+    NODE_MONITORS.alter(&node, |_, mut value| {
+        value.remove(&reference);
+        value
+    });
 }
 
 /// Gets the cookie secret value.
