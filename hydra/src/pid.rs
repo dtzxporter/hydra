@@ -10,6 +10,7 @@ use crate::node_lookup_remote;
 use crate::node_register;
 use crate::Node;
 use crate::INVALID_NODE_ID;
+use crate::LOCAL_NODE_ID;
 use crate::SERIALIZE_NODE;
 
 /// The representation of a [Pid] serialized for the wire.
@@ -33,11 +34,6 @@ impl Pid {
         Self::Local(NonZeroU64::new(id).unwrap())
     }
 
-    /// Returns true if this [Pid] is a local process.
-    pub(crate) const fn is_local(&self) -> bool {
-        matches!(self, Self::Local(_))
-    }
-
     /// Returns true if this [Pid] is a remote process.
     pub(crate) const fn is_remote(&self) -> bool {
         matches!(self, Self::Remote(_, _))
@@ -49,6 +45,19 @@ impl Pid {
             Self::Local(id) => id.get(),
             Self::Remote(id, _) => id.get(),
         }
+    }
+
+    /// Gets the node part of the [Pid].
+    pub(crate) const fn node(&self) -> u64 {
+        match self {
+            Self::Local(_) => LOCAL_NODE_ID,
+            Self::Remote(_, node) => *node,
+        }
+    }
+
+    /// Returns true if this [Pid] is a local process.
+    pub const fn is_local(&self) -> bool {
+        matches!(self, Self::Local(_))
     }
 }
 

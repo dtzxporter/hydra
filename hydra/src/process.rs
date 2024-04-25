@@ -138,17 +138,18 @@ impl Process {
                     node_process_send_with_pid(pid, message);
                 }
             }
-            Dest::Named(name) => {
-                let registry = PROCESS_REGISTRY.read().unwrap();
+            Dest::Named(name, node) => {
+                if node.is_local() {
+                    let registry = PROCESS_REGISTRY.read().unwrap();
 
-                registry
-                    .named_processes
-                    .get(name.as_ref())
-                    .and_then(|id| registry.processes.get(id))
-                    .map(|process| process.sender.send(Message::User(message).into()));
-            }
-            Dest::RemoteNamed(name, node) => {
-                node_process_send_with_name(name.into_owned(), node, message);
+                    registry
+                        .named_processes
+                        .get(name.as_ref())
+                        .and_then(|id| registry.processes.get(id))
+                        .map(|process| process.sender.send(Message::User(message).into()));
+                } else {
+                    node_process_send_with_name(name.into_owned(), node, message);
+                }
             }
             Dest::Alias(reference) => {
                 if reference.is_local() {

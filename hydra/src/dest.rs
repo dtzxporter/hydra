@@ -1,18 +1,19 @@
 use std::borrow::Cow;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::Node;
 use crate::Pid;
 use crate::Reference;
 
 /// A process destination.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Dest {
     /// A process id.
     Pid(Pid),
-    /// A registered local process name.
-    Named(Cow<'static, str>),
-    /// A remote registered process name.
-    RemoteNamed(Cow<'static, str>, Node),
+    /// A registered process name.
+    Named(Cow<'static, str>, Node),
     /// A reference to an alias.
     Alias(Reference),
 }
@@ -25,13 +26,13 @@ impl From<Pid> for Dest {
 
 impl From<&'static str> for Dest {
     fn from(value: &'static str) -> Self {
-        Self::Named(value.into())
+        Self::Named(value.into(), Node::Local)
     }
 }
 
 impl From<String> for Dest {
     fn from(value: String) -> Self {
-        Self::Named(value.into())
+        Self::Named(value.into(), Node::Local)
     }
 }
 
@@ -40,7 +41,7 @@ where
     T: Into<Node>,
 {
     fn from(value: (&'static str, T)) -> Self {
-        Self::RemoteNamed(value.0.into(), value.1.into())
+        Self::Named(value.0.into(), value.1.into())
     }
 }
 
@@ -71,7 +72,7 @@ impl PartialEq<Dest> for Pid {
 impl PartialEq<&str> for Dest {
     fn eq(&self, other: &&str) -> bool {
         match self {
-            Self::Named(name) => name == other,
+            Self::Named(name, _) => name == other,
             _ => false,
         }
     }
@@ -80,7 +81,7 @@ impl PartialEq<&str> for Dest {
 impl PartialEq<Dest> for &str {
     fn eq(&self, other: &Dest) -> bool {
         match other {
-            Dest::Named(name) => self == name,
+            Dest::Named(name, _) => self == name,
             _ => false,
         }
     }

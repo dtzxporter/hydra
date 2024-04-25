@@ -28,7 +28,7 @@ use crate::Reference;
 use crate::PROCESS_REGISTRY;
 
 /// Represents the node id always used for the local node.
-const LOCAL_NODE_ID: u64 = 0;
+pub const LOCAL_NODE_ID: u64 = 0;
 
 /// Represents a node id that will never be allocated.
 pub const INVALID_NODE_ID: u64 = u64::MAX;
@@ -394,12 +394,20 @@ pub fn node_lookup_remote(id: u64) -> Option<(String, SocketAddr)> {
         .map(|registration| (registration.name.clone(), registration.broadcast_address))
 }
 
-/// Creates a monitor for he given node and reference from the given process.
+/// Creates a monitor for the given node and reference from the given process.
 pub fn node_monitor_create(node: Node, reference: Reference, from: Pid) {
     NODE_MONITORS
         .entry(node)
         .or_default()
         .insert(reference, NodeMonitor::ForNode(from.id()));
+}
+
+/// Creates a monitor for the given node and reference from the given process for dest.
+pub fn node_process_monitor_create(node: Node, reference: Reference, dest: Dest, from: Pid) {
+    NODE_MONITORS
+        .entry(node)
+        .or_default()
+        .insert(reference, NodeMonitor::ForProcessMonitor(from.id(), dest));
 }
 
 /// Removes a monitor for the given node and reference.
