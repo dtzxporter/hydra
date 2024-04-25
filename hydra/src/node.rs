@@ -1,6 +1,9 @@
 use std::fmt::Debug;
 use std::net::SocketAddr;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::node_alive;
 use crate::node_disconnect;
 use crate::node_forget;
@@ -8,6 +11,7 @@ use crate::node_list;
 use crate::node_list_filtered;
 use crate::node_local_start;
 use crate::node_local_stop;
+use crate::node_lookup_local;
 use crate::node_monitor_create;
 use crate::node_monitor_destroy;
 use crate::node_register;
@@ -19,6 +23,14 @@ use crate::Process;
 use crate::ProcessMonitor;
 use crate::Reference;
 use crate::PROCESS;
+use crate::SERIALIZE_NODE;
+
+/// Represents a [Node] serialized for the wire.
+#[derive(Serialize, Deserialize)]
+enum NodeWire {
+    Local,
+    Remote(String, SocketAddr),
+}
 
 /// Represents a local or remote node of processes.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,6 +43,11 @@ impl Node {
     /// Returns `true` if the local node is alive.
     pub fn alive() -> bool {
         node_alive()
+    }
+
+    /// Returns `true` if the node is the current node.
+    pub const fn is_local(&self) -> bool {
+        matches!(self, Node::Local)
     }
 
     /// Returns the current node.
@@ -234,5 +251,60 @@ impl PartialEq<Node> for String {
 impl PartialEq<Node> for &str {
     fn eq(&self, other: &Node) -> bool {
         other == self
+    }
+}
+
+impl Serialize for Node {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        SERIALIZE_NODE.with(|target| {
+            let node: NodeWire = match self {
+                Self::Local => {
+                    if matches!(target, Node::Local) {
+                        NodeWire::Local
+                    } else {
+                        match node_lookup_local() {
+                            Some((name, address)) => {
+                                let node = Node::from((name.as_str(), address));
+
+                                if node == *target {
+                                    NodeWire::Local
+                                } else {
+                                    NodeWire::Remote(name, address)
+                                }
+                            }
+                            None => NodeWire::Local,
+                        }
+                    }
+                }
+                Self::Remote(name, address) => {
+                    let node = Node::from((name.as_str(), *address));
+
+                    if node == *target {
+                        NodeWire::Local
+                    } else {
+                        NodeWire::Remote(name.clone(), *address)
+                    }
+                }
+            };
+
+            node.serialize(serializer)
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Node {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let node: NodeWire = NodeWire::deserialize(deserializer)?;
+
+        match node {
+            NodeWire::Local => Ok(Node::Local),
+            NodeWire::Remote(name, address) => Ok(Node::Remote(name, address)),
+        }
     }
 }
