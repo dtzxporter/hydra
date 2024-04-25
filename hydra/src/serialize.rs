@@ -1,25 +1,33 @@
+use std::io;
+
+use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tokio::task_local;
 
-use crate::Node;
+/// Serializes a value.
+pub fn serialize_value<T: Serialize>(value: &T) -> Vec<u8> {
+    #[cfg(feature = "json")]
+    {
+        serde_json::to_vec(value).unwrap()
+    }
 
-task_local! {
-    /// The target node for use when serializing node-specific resources.
-    pub static SERIALIZE_NODE: Node;
+    #[cfg(not(feature = "json"))]
+    {
+        let _ = value;
+        unimplemented!()
+    }
 }
 
-/// Serializes a value intended for the given node.
-pub fn serialize_for_node<T: Serialize>(value: &T, node: Node) -> Vec<u8> {
-    SERIALIZE_NODE.sync_scope(node, move || {
-        #[cfg(feature = "json")]
-        {
-            serde_json::to_vec(value).unwrap()
-        }
+/// Deserializes a value.
+pub fn deserialize_slice<T: DeserializeOwned>(value: &[u8]) -> io::Result<T> {
+    #[cfg(feature = "json")]
+    {
+        serde_json::from_slice(value)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+    }
 
-        #[cfg(not(feature = "json"))]
-        {
-            let _ = value;
-            unimplemented!()
-        }
-    })
+    #[cfg(not(any(feature = "json")))]
+    {
+        let _ = serialized;
+        unimplemented!()
+    }
 }

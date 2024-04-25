@@ -1,3 +1,4 @@
+use crate::deserialize_slice;
 use crate::Message;
 use crate::ProcessItem;
 use crate::Receivable;
@@ -125,21 +126,12 @@ fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<
     // Special case for serialized messages, we'll convert them to deserialized one time to prevent
     // deserializing the value more than once, then convert to a reference.
     if let ProcessItem::UserRemoteMessage(serialized) = item {
-        #[cfg(feature = "json")]
-        {
-            let result: Result<T, _> = serde_json::from_slice(serialized);
+        let result: Result<T, _> = deserialize_slice(serialized);
 
-            if let Ok(result) = result {
-                *item = ProcessItem::UserLocalMessage(Box::new(result));
-            } else {
-                return Err(());
-            }
-        }
-
-        #[cfg(not(any(feature = "json")))]
-        {
-            let _ = serialized;
-            unimplemented!()
+        if let Ok(result) = result {
+            *item = ProcessItem::UserLocalMessage(Box::new(result));
+        } else {
+            return Err(());
         }
     }
 

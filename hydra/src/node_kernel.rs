@@ -3,10 +3,9 @@ use crate::frame::Send;
 use crate::frame::SendTarget;
 
 use crate::alias_retrieve;
-use crate::node_lookup_remote;
 use crate::node_register;
 use crate::node_send_frame;
-use crate::serialize_for_node;
+use crate::serialize_value;
 use crate::Node;
 use crate::Pid;
 use crate::ProcessItem;
@@ -58,12 +57,7 @@ pub fn node_process_send_with_pid<M: Receivable>(pid: Pid, message: M) {
         panic!("Can't send to a local process!");
     };
 
-    let Some((name, address)) = node_lookup_remote(node) else {
-        // TODO: This could return noconnection.
-        return;
-    };
-
-    let message = serialize_for_node(&message, Node::from((name, address)));
+    let message = serialize_value(&message);
 
     node_send_frame(Frame::from(Send::with_pid(id, message)), node);
 }
@@ -74,19 +68,14 @@ pub fn node_process_send_with_alias<M: Receivable>(reference: Reference, message
         panic!("Can't send to a local alias!");
     };
 
-    let Some((name, address)) = node_lookup_remote(node) else {
-        // TODO: This could return noconnection.
-        return;
-    };
-
-    let message = serialize_for_node(&message, Node::from((name, address)));
+    let message = serialize_value(&message);
 
     node_send_frame(Frame::from(Send::with_alias(id, message)), node);
 }
 
 /// Sends the given message to the remote node with the given name/node.
 pub fn node_process_send_with_name<M: Receivable>(name: String, node: Node, message: M) {
-    let message = serialize_for_node(&message, node.clone());
+    let message = serialize_value(&message);
 
     let node = node_register(node, false);
 

@@ -11,14 +11,12 @@ use crate::node_register;
 use crate::Node;
 use crate::INVALID_NODE_ID;
 use crate::LOCAL_NODE_ID;
-use crate::SERIALIZE_NODE;
 
 /// The representation of a [Pid] serialized for the wire.
 #[derive(Serialize, Deserialize)]
 enum PidWire {
-    Local(NonZeroU64),
-    Remote(NonZeroU64, String, SocketAddr),
-    RemoteUnavailable(NonZeroU64),
+    WithNode(NonZeroU64, String, SocketAddr),
+    NodeUnavailable(NonZeroU64),
 }
 
 /// A unique identifier of a process in hydra.
@@ -80,42 +78,18 @@ impl Serialize for Pid {
     where
         S: serde::Serializer,
     {
-        SERIALIZE_NODE.with(|target| {
-            let node: PidWire = match self {
-                Self::Local(id) => {
-                    if matches!(target, Node::Local) {
-                        PidWire::Local(*id)
-                    } else {
-                        match node_lookup_local() {
-                            Some((name, address)) => {
-                                let node = Node::from((name.as_str(), address));
+        let pid: PidWire = match self {
+            Self::Local(id) => match node_lookup_local() {
+                Some((name, address)) => PidWire::WithNode(*id, name, address),
+                None => PidWire::NodeUnavailable(*id),
+            },
+            Self::Remote(id, node) => match node_lookup_remote(*node) {
+                Some((name, address)) => PidWire::WithNode(*id, name, address),
+                None => PidWire::NodeUnavailable(*id),
+            },
+        };
 
-                                if node == *target {
-                                    PidWire::Local(*id)
-                                } else {
-                                    PidWire::Remote(*id, name, address)
-                                }
-                            }
-                            None => PidWire::RemoteUnavailable(*id),
-                        }
-                    }
-                }
-                Self::Remote(id, node) => match node_lookup_remote(*node) {
-                    Some((name, address)) => {
-                        let node = Node::from((name.as_str(), address));
-
-                        if node == *target {
-                            PidWire::Local(*id)
-                        } else {
-                            PidWire::Remote(*id, name, address)
-                        }
-                    }
-                    None => PidWire::RemoteUnavailable(*id),
-                },
-            };
-
-            node.serialize(serializer)
-        })
+        pid.serialize(serializer)
     }
 }
 
@@ -127,13 +101,19 @@ impl<'de> Deserialize<'de> for Pid {
         let node: PidWire = PidWire::deserialize(deserializer)?;
 
         match node {
-            PidWire::Local(id) => Ok(Self::Local(id)),
-            PidWire::Remote(id, name, address) => {
-                let node = node_register(Node::from((name, address)), false);
+            PidWire::WithNode(id, node_name, node_address) => match node_lookup_local() {
+                Some((name, address)) => {
+                    if name == node_name && address == node_address {
+                        Ok(Pid::Local(id))
+                    } else {
+                        let node = node_register(Node::from((node_name, node_address)), false);
 
-                Ok(Self::Remote(id, node))
-            }
-            PidWire::RemoteUnavailable(id) => Ok(Self::Remote(id, INVALID_NODE_ID)),
+                        Ok(Pid::Remote(id, node))
+                    }
+                }
+                None => Ok(Pid::Remote(id, INVALID_NODE_ID)),
+            },
+            PidWire::NodeUnavailable(id) => Ok(Self::Remote(id, INVALID_NODE_ID)),
         }
     }
 }

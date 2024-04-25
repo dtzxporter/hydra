@@ -14,14 +14,12 @@ use crate::node_register;
 use crate::Node;
 use crate::INVALID_NODE_ID;
 use crate::LOCAL_NODE_ID;
-use crate::SERIALIZE_NODE;
 
 /// The representation of a [Reference] serialized for the wire.
 #[derive(Serialize, Deserialize)]
 enum ReferenceWire {
-    Local(NonZeroU64),
-    Remote(NonZeroU64, String, SocketAddr),
-    RemoteUnavailable(NonZeroU64),
+    WithNode(NonZeroU64, String, SocketAddr),
+    NodeUnavailable(NonZeroU64),
 }
 
 /// A unique id that pertains to a specific node.
@@ -91,42 +89,18 @@ impl Serialize for Reference {
     where
         S: serde::Serializer,
     {
-        SERIALIZE_NODE.with(|target| {
-            let reference: ReferenceWire = match self {
-                Self::Local(id) => {
-                    if matches!(target, Node::Local) {
-                        ReferenceWire::Local(*id)
-                    } else {
-                        match node_lookup_local() {
-                            Some((name, address)) => {
-                                let node = Node::from((name.as_str(), address));
+        let reference: ReferenceWire = match self {
+            Self::Local(id) => match node_lookup_local() {
+                Some((name, address)) => ReferenceWire::WithNode(*id, name, address),
+                None => ReferenceWire::NodeUnavailable(*id),
+            },
+            Self::Remote(id, node) => match node_lookup_remote(*node) {
+                Some((name, address)) => ReferenceWire::WithNode(*id, name, address),
+                None => ReferenceWire::NodeUnavailable(*id),
+            },
+        };
 
-                                if node == *target {
-                                    ReferenceWire::Local(*id)
-                                } else {
-                                    ReferenceWire::Remote(*id, name, address)
-                                }
-                            }
-                            None => ReferenceWire::RemoteUnavailable(*id),
-                        }
-                    }
-                }
-                Self::Remote(id, node) => match node_lookup_remote(*node) {
-                    Some((name, address)) => {
-                        let node = Node::from((name.as_str(), address));
-
-                        if node == *target {
-                            ReferenceWire::Local(*id)
-                        } else {
-                            ReferenceWire::Remote(*id, name, address)
-                        }
-                    }
-                    None => ReferenceWire::RemoteUnavailable(*id),
-                },
-            };
-
-            reference.serialize(serializer)
-        })
+        reference.serialize(serializer)
     }
 }
 
@@ -138,13 +112,19 @@ impl<'de> Deserialize<'de> for Reference {
         let node: ReferenceWire = ReferenceWire::deserialize(deserializer)?;
 
         match node {
-            ReferenceWire::Local(id) => Ok(Self::Local(id)),
-            ReferenceWire::Remote(id, name, address) => {
-                let node = node_register(Node::from((name, address)), false);
+            ReferenceWire::WithNode(id, node_name, node_address) => match node_lookup_local() {
+                Some((name, address)) => {
+                    if name == node_name && address == node_address {
+                        Ok(Reference::Local(id))
+                    } else {
+                        let node = node_register(Node::from((node_name, node_address)), false);
 
-                Ok(Self::Remote(id, node))
-            }
-            ReferenceWire::RemoteUnavailable(id) => Ok(Self::Remote(id, INVALID_NODE_ID)),
+                        Ok(Reference::Remote(id, node))
+                    }
+                }
+                None => Ok(Reference::Remote(id, INVALID_NODE_ID)),
+            },
+            ReferenceWire::NodeUnavailable(id) => Ok(Self::Remote(id, INVALID_NODE_ID)),
         }
     }
 }
