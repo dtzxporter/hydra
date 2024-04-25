@@ -34,6 +34,7 @@ pub const LOCAL_NODE_ID: u64 = 0;
 pub const INVALID_NODE_ID: u64 = u64::MAX;
 
 /// The type of node monitor that was installed.
+#[derive(Debug)]
 enum NodeMonitor {
     /// The monitor is explicitly for the node itself.
     ForNode(u64),

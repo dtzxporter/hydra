@@ -148,6 +148,13 @@ impl Node {
 
         let reference = Reference::new();
 
+        PROCESS.with(|process| {
+            process
+                .monitors
+                .borrow_mut()
+                .insert(reference, ProcessMonitor::ForNode(node.clone()))
+        });
+
         node_monitor_create(node.clone(), reference, current);
         node_register(node, true);
 

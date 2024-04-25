@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use hydra::Message;
 use hydra::Node;
 use hydra::NodeOptions;
 use hydra::Process;
@@ -16,11 +17,17 @@ async fn main() {
 
     let address: SocketAddr = "127.0.0.1:1337".parse().unwrap();
 
-    Node::connect(("hydra-test-main", address));
+    Node::monitor(("hydra-test-main", address));
 
     Process::sleep(Duration::from_secs(5)).await;
 
     println!("Nodes: {:?}", Node::list());
+
+    loop {
+        let message: Message<()> = Process::receive().await;
+
+        println!("Got message: {:?}", message);
+    }
 
     Process::sleep(Duration::from_secs(1000)).await;
 }
