@@ -34,6 +34,11 @@ impl Pid {
         Self::Local(NonZeroU64::new(id).unwrap())
     }
 
+    /// Constructs a new [Pid] from the given process id, assigning it to the remote node.
+    pub(crate) fn remote(id: u64, node: u64) -> Self {
+        Self::Remote(NonZeroU64::new(id).unwrap(), node)
+    }
+
     /// Returns true if this [Pid] is a remote process.
     pub(crate) const fn is_remote(&self) -> bool {
         matches!(self, Self::Remote(_, _))

@@ -21,9 +21,13 @@ use crate::frame::Hello;
 use crate::frame::Ping;
 use crate::frame::Pong;
 
+use crate::monitor_create;
+use crate::monitor_destroy;
 use crate::node_accept;
 use crate::node_forward_send;
 use crate::node_local_process;
+use crate::node_process_monitor_down;
+use crate::node_register;
 use crate::node_remote_supervisor_down;
 use crate::node_set_send_recv;
 use crate::Local;
@@ -33,6 +37,7 @@ use crate::NodeLocalSupervisor;
 use crate::NodeLocalSupervisorMessage;
 use crate::Pid;
 use crate::Process;
+use crate::Reference;
 
 type Reader = SplitStream<Framed<TcpStream, Codec>>;
 type Writer = SplitSink<Framed<TcpStream, Codec>, Frame>;
@@ -134,6 +139,28 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
             }
             Frame::Send(send) => {
                 node_forward_send(send);
+            }
+            Frame::Monitor(monitor) => {
+                let node = node_register(supervisor.node.clone(), false);
+
+                let process = Pid::local(monitor.process_id);
+                let from = Pid::remote(monitor.from_id, node);
+                let reference = Reference::remote(monitor.reference_id, node);
+
+                if monitor.install {
+                    monitor_create(process, reference, from, None);
+                } else {
+                    monitor_destroy(process, reference);
+                }
+            }
+            Frame::MonitorDown(monitor_down) => {
+                for reference_id in monitor_down.monitors {
+                    node_process_monitor_down(
+                        supervisor.node.clone(),
+                        Reference::local(reference_id),
+                        monitor_down.exit_reason.clone(),
+                    );
+                }
             }
         }
     }

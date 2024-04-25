@@ -418,6 +418,32 @@ pub fn node_monitor_destroy(node: Node, reference: Reference) {
     });
 }
 
+/// Fires when a remote process has notified the local node that it went down.
+pub fn node_process_monitor_down(node: Node, reference: Reference, exit_reason: ExitReason) {
+    let mut monitor: Option<NodeMonitor> = None;
+
+    NODE_MONITORS.alter(&node, |_, mut value| {
+        monitor = value.remove(&reference);
+
+        value
+    });
+
+    if let Some(NodeMonitor::ForProcessMonitor(id, dest)) = monitor {
+        PROCESS_REGISTRY
+            .read()
+            .unwrap()
+            .processes
+            .get(&id)
+            .map(|process| {
+                process.sender.send(ProcessItem::MonitorProcessDown(
+                    dest,
+                    reference,
+                    exit_reason,
+                ))
+            });
+    }
+}
+
 /// Gets the cookie secret value.
 pub fn node_get_cookie() -> Option<String> {
     NODE_COOKIE.lock().unwrap().clone()

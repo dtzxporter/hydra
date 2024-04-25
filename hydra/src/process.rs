@@ -512,7 +512,7 @@ where
                 .insert(monitor, ProcessMonitor::ForProcess(Some(pid)))
         });
 
-        monitor_create(pid, monitor, Process::current(), pid.into());
+        monitor_create(pid, monitor, Process::current(), Some(pid.into()));
 
         result = SpawnResult::PidMonitor(pid, monitor);
     }
@@ -574,7 +574,7 @@ where
                 .insert(monitor, ProcessMonitor::ForProcess(Some(pid)))
         });
 
-        monitor_create(pid, monitor, Process::current(), pid.into());
+        monitor_create(pid, monitor, Process::current(), Some(pid.into()));
 
         result = SpawnResult::PidMonitor(pid, monitor);
     }

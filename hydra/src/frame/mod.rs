@@ -18,11 +18,15 @@ use tokio_util::codec::Decoder;
 use tokio_util::codec::Encoder;
 
 mod hello;
+mod monitor;
+mod monitor_down;
 mod ping;
 mod pong;
 mod send;
 
 pub use hello::*;
+pub use monitor::*;
+pub use monitor_down::*;
 pub use ping::*;
 pub use pong::*;
 pub use send::*;
@@ -39,6 +43,8 @@ pub enum Frame {
     Ping,
     Pong,
     Send(Send),
+    Monitor(Monitor),
+    MonitorDown(MonitorDown),
 }
 
 impl From<Hello> for Frame {
@@ -62,6 +68,18 @@ impl From<Pong> for Frame {
 impl From<Send> for Frame {
     fn from(value: Send) -> Self {
         Self::Send(value)
+    }
+}
+
+impl From<Monitor> for Frame {
+    fn from(value: Monitor) -> Self {
+        Self::Monitor(value)
+    }
+}
+
+impl From<MonitorDown> for Frame {
+    fn from(value: MonitorDown) -> Self {
+        Self::MonitorDown(value)
     }
 }
 

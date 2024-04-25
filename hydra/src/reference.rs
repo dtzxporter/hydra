@@ -38,6 +38,16 @@ impl Reference {
         Self::Local(NonZeroU64::new(REF.fetch_add(1, Ordering::Relaxed)).unwrap())
     }
 
+    /// Constructs a new [Reference] from the given id, assigning it to the local node.
+    pub(crate) fn local(id: u64) -> Self {
+        Self::Local(NonZeroU64::new(id).unwrap())
+    }
+
+    /// Constructs a new [Reference] from the given id, assigning it to the remote node.
+    pub(crate) fn remote(id: u64, node: u64) -> Self {
+        Self::Remote(NonZeroU64::new(id).unwrap(), node)
+    }
+
     /// Returns true if this [Reference] is a local process.
     pub(crate) const fn is_local(&self) -> bool {
         matches!(self, Self::Local(_))
