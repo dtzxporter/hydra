@@ -23,13 +23,12 @@ use crate::Process;
 use crate::ProcessMonitor;
 use crate::Reference;
 use crate::PROCESS;
-use crate::SERIALIZE_NODE;
 
 /// Represents a [Node] serialized for the wire.
 #[derive(Serialize, Deserialize)]
-enum NodeWire {
-    Local,
-    Remote(String, SocketAddr),
+struct NodeWire {
+    name: String,
+    address: Option<SocketAddr>,
 }
 
 /// Represents a local or remote node of processes.
@@ -259,39 +258,24 @@ impl Serialize for Node {
     where
         S: serde::Serializer,
     {
-        SERIALIZE_NODE.with(|target| {
-            let node: NodeWire = match self {
-                Self::Local => {
-                    if matches!(target, Node::Local) {
-                        NodeWire::Local
-                    } else {
-                        match node_lookup_local() {
-                            Some((name, address)) => {
-                                let node = Node::from((name.as_str(), address));
+        let node: NodeWire = match self {
+            Self::Local => match node_lookup_local() {
+                Some((name, address)) => NodeWire {
+                    name,
+                    address: Some(address),
+                },
+                None => NodeWire {
+                    name: String::from("nohost"),
+                    address: None,
+                },
+            },
+            Self::Remote(name, address) => NodeWire {
+                name: name.clone(),
+                address: Some(*address),
+            },
+        };
 
-                                if node == *target {
-                                    NodeWire::Local
-                                } else {
-                                    NodeWire::Remote(name, address)
-                                }
-                            }
-                            None => NodeWire::Local,
-                        }
-                    }
-                }
-                Self::Remote(name, address) => {
-                    let node = Node::from((name.as_str(), *address));
-
-                    if node == *target {
-                        NodeWire::Local
-                    } else {
-                        NodeWire::Remote(name.clone(), *address)
-                    }
-                }
-            };
-
-            node.serialize(serializer)
-        })
+        node.serialize(serializer)
     }
 }
 
@@ -302,9 +286,17 @@ impl<'de> Deserialize<'de> for Node {
     {
         let node: NodeWire = NodeWire::deserialize(deserializer)?;
 
-        match node {
-            NodeWire::Local => Ok(Node::Local),
-            NodeWire::Remote(name, address) => Ok(Node::Remote(name, address)),
+        match node_lookup_local() {
+            Some((name, address)) => {
+                if node.name == name
+                    && (node.address.is_none() || node.address.is_some_and(|node| node == address))
+                {
+                    Ok(Node::Local)
+                } else {
+                    Ok(Node::Remote(node.name, node.address.unwrap()))
+                }
+            }
+            None => Ok(Node::Local),
         }
     }
 }
