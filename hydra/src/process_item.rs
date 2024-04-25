@@ -4,6 +4,7 @@ use crate::Dest;
 use crate::ExitReason;
 use crate::Message;
 use crate::Node;
+use crate::Pid;
 use crate::Reference;
 use crate::SystemMessage;
 
@@ -19,6 +20,8 @@ pub enum ProcessItem {
     MonitorProcessDown(Dest, Reference, ExitReason),
     /// Sent from a monitor when a node goes down.
     MonitorNodeDown(Node, Reference),
+    /// Sent from a remote monitor to update the assigned pid.
+    MonitorProcessUpdate(Reference, Pid),
     /// Sent from the system when an alias is deactivated externally.
     AliasDeactivated(u64),
 }
@@ -54,6 +57,9 @@ impl Debug for ProcessItem {
             ),
             Self::MonitorNodeDown(node, reference) => {
                 write!(f, "MonitorNodeDown({:?}, {:?})", node, reference)
+            }
+            Self::MonitorProcessUpdate(reference, process) => {
+                write!(f, "MonitorProcessUpdate({:?}, {:?})", reference, process)
             }
             Self::AliasDeactivated(alias) => write!(f, "AliasDeactivated({:?})", alias),
         }

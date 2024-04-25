@@ -1,6 +1,7 @@
 use crate::deserialize_slice;
 use crate::Message;
 use crate::ProcessItem;
+use crate::ProcessMonitor;
 use crate::Receivable;
 use crate::SystemMessage;
 use crate::PROCESS;
@@ -116,6 +117,7 @@ fn convert_item<T: Receivable>(item: ProcessItem) -> Message<T> {
         // Handled during item processing.
         ProcessItem::MonitorProcessDown(_, _, _) => unreachable!(),
         ProcessItem::MonitorNodeDown(_, _) => unreachable!(),
+        ProcessItem::MonitorProcessUpdate(_, _) => unreachable!(),
         ProcessItem::AliasDeactivated(_) => unreachable!(),
     }
 }
@@ -171,6 +173,17 @@ fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<
             *item = ProcessItem::SystemMessage(system.clone());
 
             Ok(Some(Message::System(system)))
+        }
+        ProcessItem::MonitorProcessUpdate(reference, pid) => {
+            // Update the existing monitor reference so that if we go down before it fires,
+            // We can gracefully clean up the remote monitor, this is only for named monitors.
+            PROCESS.with(|process| {
+                if let Some(monitor) = process.monitors.borrow_mut().get_mut(reference) {
+                    *monitor = ProcessMonitor::ForProcess(Some(*pid));
+                }
+            });
+
+            Ok(None)
         }
         ProcessItem::AliasDeactivated(id) => {
             PROCESS.with(|process| process.aliases.borrow_mut().remove(id));

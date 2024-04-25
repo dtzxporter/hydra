@@ -19,6 +19,7 @@ use crate::frame::Codec;
 use crate::frame::Frame;
 use crate::frame::Hello;
 use crate::frame::MonitorDown;
+use crate::frame::MonitorUpdate;
 use crate::frame::Ping;
 use crate::frame::Pong;
 
@@ -40,6 +41,7 @@ use crate::NodeLocalSupervisor;
 use crate::NodeLocalSupervisorMessage;
 use crate::Pid;
 use crate::Process;
+use crate::ProcessItem;
 use crate::Reference;
 use crate::PROCESS_REGISTRY;
 
@@ -172,6 +174,10 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
 
                         if let Some(id) = registry.named_processes.get(&name) {
                             monitor_create(Pid::local(*id), reference, from, None);
+
+                            let monitor_update = MonitorUpdate::new(from_id, *id, reference.id());
+
+                            node_send_frame(monitor_update.into(), node);
                         } else {
                             let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
 
@@ -194,6 +200,23 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                         monitor_down.exit_reason.clone(),
                     );
                 }
+            }
+            Frame::MonitorUpdate(monitor_update) => {
+                let node = node_register(supervisor.node.clone(), false);
+
+                let reference = Reference::local(monitor_update.reference_id);
+                let from = Pid::remote(monitor_update.from_id, node);
+
+                PROCESS_REGISTRY
+                    .read()
+                    .unwrap()
+                    .processes
+                    .get(&monitor_update.process_id)
+                    .map(|process| {
+                        process
+                            .sender
+                            .send(ProcessItem::MonitorProcessUpdate(reference, from))
+                    });
             }
         }
     }
