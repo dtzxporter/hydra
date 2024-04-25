@@ -132,7 +132,7 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
         let message = timeout(recv_timeout, reader.next())
             .await
             .expect("Remote node timed out!")
-            .unwrap()
+            .expect("Remote node went down!")
             .expect("Failed to receive a message from the remote node!");
 
         match message {
