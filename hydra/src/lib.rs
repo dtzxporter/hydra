@@ -27,6 +27,7 @@ mod receivable;
 mod reference;
 mod serialize;
 mod system_message;
+mod timeout;
 
 pub use dest::*;
 pub use exit_reason::*;
@@ -43,6 +44,7 @@ pub use process_receiver::*;
 pub use receivable::*;
 pub use reference::*;
 pub use system_message::*;
+pub use timeout::*;
 
 #[cfg(not(test))]
 pub use hydra_macros::main;

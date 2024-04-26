@@ -38,6 +38,7 @@ use crate::ProcessReceiver;
 use crate::ProcessRegistration;
 use crate::Receivable;
 use crate::Reference;
+use crate::Timeout;
 use crate::PROCESS_REGISTRY;
 
 /// The send type for a process.
@@ -267,6 +268,16 @@ impl Process {
         tokio::time::sleep(duration).await
     }
 
+    /// Waits for the given future to complete until the given duration is up.
+    pub async fn timeout<F>(duration: Duration, future: F) -> Result<<F as Future>::Output, Timeout>
+    where
+        F: Future,
+    {
+        pingora_timeout::timeout(duration, future)
+            .await
+            .map_err(|_| Timeout)
+    }
+
     /// Registers the given [Pid] under `name` if the process is local, active, and the name is not already registered.
     pub fn register<S: Into<String>>(pid: Pid, name: S) {
         let name = name.into();
@@ -348,12 +359,13 @@ impl Process {
             return;
         }
 
-        if pid.is_remote() {
-            unimplemented!("Remote process link unsupported!");
-        }
-
-        link_create(pid, current, false);
         link_create(current, pid, false);
+
+        if pid.is_local() {
+            link_create(pid, current, false);
+        } else {
+            //
+        }
     }
 
     /// Removes the link between the calling process and the given process.

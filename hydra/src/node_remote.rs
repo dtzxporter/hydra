@@ -7,8 +7,6 @@ use tokio::net::TcpStream;
 
 use tokio_util::codec::Framed;
 
-use pingora_timeout::timeout;
-
 use futures_util::stream;
 use futures_util::stream::SplitSink;
 use futures_util::stream::SplitStream;
@@ -96,7 +94,7 @@ async fn node_remote_sender(mut writer: Writer, supervisor: Arc<NodeRemoteSuperv
 
     loop {
         let Ok(message) =
-            timeout(send_timeout, Process::receive::<NodeRemoteSenderMessage>()).await
+            Process::timeout(send_timeout, Process::receive::<NodeRemoteSenderMessage>()).await
         else {
             writer
                 .send(Ping.into())
@@ -129,7 +127,7 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
     let recv_timeout = supervisor.local_supervisor.options.heartbeat_timeout;
 
     loop {
-        let message = timeout(recv_timeout, reader.next())
+        let message = Process::timeout(recv_timeout, reader.next())
             .await
             .expect("Remote node timed out!")
             .expect("Remote node went down!")
@@ -273,12 +271,12 @@ pub async fn node_remote_accepter(socket: TcpStream, supervisor: Arc<NodeLocalSu
 
     let handshake_timeout = supervisor.options.handshake_timeout;
 
-    timeout(handshake_timeout, writer.send(hello.into()))
+    Process::timeout(handshake_timeout, writer.send(hello.into()))
         .await
         .expect("Timed out while sending hello handshake packet!")
         .expect("Failed to send hello handshake packet!");
 
-    let frame = timeout(handshake_timeout, reader.next())
+    let frame = Process::timeout(handshake_timeout, reader.next())
         .await
         .expect("Timed out while receiving hello handshake packet!")
         .unwrap()
@@ -323,7 +321,7 @@ pub async fn node_remote_connector(node: Node) {
 
     let handshake_timeout = supervisor.options.handshake_timeout;
 
-    let socket = timeout(handshake_timeout, TcpStream::connect(address))
+    let socket = Process::timeout(handshake_timeout, TcpStream::connect(address))
         .await
         .expect("Timed out while connecting to the node!")
         .expect("Failed to connect to the node!");
@@ -336,12 +334,12 @@ pub async fn node_remote_connector(node: Node) {
         supervisor.options.broadcast_address,
     );
 
-    timeout(handshake_timeout, writer.send(hello.into()))
+    Process::timeout(handshake_timeout, writer.send(hello.into()))
         .await
         .expect("Timed out while sending hello handshake packet!")
         .expect("Failed to send hello handshake packet!");
 
-    let frame = timeout(handshake_timeout, reader.next())
+    let frame = Process::timeout(handshake_timeout, reader.next())
         .await
         .expect("Timed out while receiving hello handshake packet!")
         .unwrap()
