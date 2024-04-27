@@ -18,7 +18,7 @@ pub struct ProcessRegistration {
     /// Process flags.
     pub flags: AtomicU32,
     /// Process exit reason.
-    pub exit_reason: ExitReason,
+    pub exit_reason: Option<ExitReason>,
 }
 
 impl ProcessRegistration {
@@ -29,7 +29,7 @@ impl ProcessRegistration {
             sender,
             name: None,
             flags: AtomicU32::new(ProcessFlags::empty().bits()),
-            exit_reason: ExitReason::Normal,
+            exit_reason: None,
         }
     }
 

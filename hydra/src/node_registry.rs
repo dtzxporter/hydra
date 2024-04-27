@@ -11,6 +11,8 @@ use once_cell::sync::Lazy;
 
 use crate::frame::Frame;
 
+use crate::link_destroy;
+use crate::monitor_destroy;
 use crate::node_local_supervisor;
 use crate::node_remote_connector;
 use crate::Dest;
@@ -37,9 +39,11 @@ pub const INVALID_NODE_ID: u64 = u64::MAX;
 #[derive(Debug)]
 enum NodeMonitor {
     /// The monitor is explicitly for the node itself.
-    ForNode(u64),
+    Node(u64),
     /// The monitor is installed on behalf of a remote process monitor.
-    ForProcessMonitor(u64, Dest),
+    ProcessMonitor(u64, Dest),
+    /// The monitor is installed on behalf of a remote process monitor for cleanup.
+    ProcessMonitorCleanup(u64),
 }
 
 // When a pid is serialized over the wire, we need to lookup it's node@ip:port combination.
@@ -53,6 +57,9 @@ static NODE_MAP: Lazy<DashMap<Node, u64>> = Lazy::new(DashMap::new);
 /// A collection of node monitors installed.
 static NODE_MONITORS: Lazy<DashMap<Node, BTreeMap<Reference, NodeMonitor>>> =
     Lazy::new(DashMap::new);
+
+/// A collection of node links installed.
+static NODE_LINKS: Lazy<DashMap<Node, BTreeMap<Pid, u64>>> = Lazy::new(DashMap::new);
 
 /// A collection of node:vec<msg> pending messages for a node.
 static NODE_PENDING_MESSAGES: Lazy<DashMap<Node, Vec<Frame>>> = Lazy::new(DashMap::new);
@@ -287,19 +294,35 @@ pub fn node_remote_supervisor_down(node: Node, process: Pid) {
         value.receiver = None;
         value.state = NodeState::Known;
 
+        if let Some((_, links)) = NODE_LINKS.remove(&node) {
+            let mut registry = PROCESS_REGISTRY.write().unwrap();
+
+            for (from, process_id) in links {
+                let process = Pid::local(process_id);
+
+                link_destroy(process, from);
+
+                registry.exit_signal_linked_process(
+                    process,
+                    from,
+                    ExitReason::from("noconnection"),
+                );
+            }
+        }
+
         if let Some((_, monitors)) = NODE_MONITORS.remove(&node) {
             let registry = PROCESS_REGISTRY.read().unwrap();
 
             for (reference, monitor) in monitors {
                 match monitor {
-                    NodeMonitor::ForNode(id) => {
+                    NodeMonitor::Node(id) => {
                         registry.processes.get(&id).map(|process| {
                             process
                                 .sender
                                 .send(ProcessItem::MonitorNodeDown(node.clone(), reference))
                         });
                     }
-                    NodeMonitor::ForProcessMonitor(id, dest) => {
+                    NodeMonitor::ProcessMonitor(id, dest) => {
                         registry.processes.get(&id).map(|process| {
                             process.sender.send(ProcessItem::MonitorProcessDown(
                                 dest,
@@ -307,6 +330,9 @@ pub fn node_remote_supervisor_down(node: Node, process: Pid) {
                                 ExitReason::from("noconnection"),
                             ))
                         });
+                    }
+                    NodeMonitor::ProcessMonitorCleanup(id) => {
+                        monitor_destroy(Pid::local(id), reference);
                     }
                 }
             }
@@ -400,7 +426,7 @@ pub fn node_monitor_create(node: Node, reference: Reference, from: Pid) {
     NODE_MONITORS
         .entry(node)
         .or_default()
-        .insert(reference, NodeMonitor::ForNode(from.id()));
+        .insert(reference, NodeMonitor::Node(from.id()));
 }
 
 /// Creates a monitor for the given node and reference from the given process for dest.
@@ -408,7 +434,41 @@ pub fn node_process_monitor_create(node: Node, reference: Reference, dest: Dest,
     NODE_MONITORS
         .entry(node)
         .or_default()
-        .insert(reference, NodeMonitor::ForProcessMonitor(from.id(), dest));
+        .insert(reference, NodeMonitor::ProcessMonitor(from.id(), dest));
+}
+
+/// Creates a monitor cleanup for the given node and reference from the given process.
+pub fn node_process_monitor_cleanup(node: Node, reference: Reference, process: Pid) {
+    NODE_MONITORS
+        .entry(node)
+        .or_default()
+        .insert(reference, NodeMonitor::ProcessMonitorCleanup(process.id()));
+}
+
+/// Destroys a node process monitor for the given node and reference.
+pub fn node_process_monitor_destroy(node: Node, reference: Reference) {
+    NODE_MONITORS.alter(&node, |_, mut value| {
+        value.remove(&reference);
+        value
+    });
+}
+
+/// Destroys all process monitors for the given node by their references.
+pub fn node_process_monitor_destroy_all(node: Node, references: Vec<Reference>) {
+    NODE_MONITORS.alter(&node, |_, mut value| {
+        for reference in references {
+            value.remove(&reference);
+        }
+        value
+    });
+}
+
+/// Creates a monitor for the given node and process from the given linked process.
+pub fn node_process_link_create(node: Node, process: Pid, from: Pid) {
+    NODE_LINKS
+        .entry(node)
+        .or_default()
+        .insert(process, from.id());
 }
 
 /// Removes a monitor for the given node and reference.
@@ -429,7 +489,7 @@ pub fn node_process_monitor_down(node: Node, reference: Reference, exit_reason: 
         value
     });
 
-    if let Some(NodeMonitor::ForProcessMonitor(id, dest)) = monitor {
+    if let Some(NodeMonitor::ProcessMonitor(id, dest)) = monitor {
         PROCESS_REGISTRY
             .read()
             .unwrap()

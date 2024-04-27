@@ -38,7 +38,7 @@ impl ProcessRegistry {
         match exit_reason {
             ExitReason::Normal => {
                 if pid == from {
-                    process.exit_reason = exit_reason;
+                    process.exit_reason = Some(exit_reason);
                     process.handle.abort();
                 } else if trapping_exits {
                     process
@@ -51,7 +51,7 @@ impl ProcessRegistry {
                 }
             }
             ExitReason::Kill => {
-                process.exit_reason = exit_reason;
+                process.exit_reason = Some(exit_reason);
                 process.handle.abort();
             }
             ExitReason::Custom(_) => {
@@ -64,7 +64,7 @@ impl ProcessRegistry {
                         )))
                         .unwrap();
                 } else {
-                    process.exit_reason = exit_reason;
+                    process.exit_reason = Some(exit_reason);
                     process.handle.abort();
                 }
             }
@@ -83,7 +83,7 @@ impl ProcessRegistry {
                     )))
                     .unwrap();
             } else if !exit_reason.is_normal() {
-                process.exit_reason = exit_reason;
+                process.exit_reason = Some(exit_reason);
                 process.handle.abort();
             }
         }

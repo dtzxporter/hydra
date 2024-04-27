@@ -12,7 +12,7 @@ pub struct MonitorDown {
 
 impl MonitorDown {
     /// Constructs a new instance of [MonitorDown] frame.
-    pub fn new(exit_reason: ExitReason) -> Self {
+    pub const fn new(exit_reason: ExitReason) -> Self {
         Self {
             monitors: Vec::new(),
             exit_reason,

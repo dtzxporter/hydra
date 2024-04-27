@@ -16,16 +16,21 @@ use futures_util::StreamExt;
 use crate::frame::Codec;
 use crate::frame::Frame;
 use crate::frame::Hello;
+use crate::frame::LinkDown;
 use crate::frame::MonitorDown;
 use crate::frame::MonitorUpdate;
 use crate::frame::Ping;
 use crate::frame::Pong;
 
+use crate::link_create;
 use crate::monitor_create;
 use crate::monitor_destroy;
 use crate::node_accept;
 use crate::node_forward_send;
 use crate::node_local_process;
+use crate::node_process_link_create;
+use crate::node_process_monitor_cleanup;
+use crate::node_process_monitor_destroy;
 use crate::node_process_monitor_down;
 use crate::node_register;
 use crate::node_remote_supervisor_down;
@@ -160,6 +165,11 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
 
                         if PROCESS_REGISTRY.read().unwrap().processes.contains_key(&id) {
                             monitor_create(process, reference, from, None);
+                            node_process_monitor_cleanup(
+                                supervisor.node.clone(),
+                                reference,
+                                process,
+                            );
                         } else {
                             let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
 
@@ -176,6 +186,11 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                             let monitor_update = MonitorUpdate::new(from_id, *id, reference.id());
 
                             node_send_frame(monitor_update.into(), node);
+                            node_process_monitor_cleanup(
+                                supervisor.node.clone(),
+                                reference,
+                                Pid::local(*id),
+                            );
                         } else {
                             let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
 
@@ -188,6 +203,8 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                     };
                 } else {
                     monitor_destroy(Pid::local(monitor.process_id.unwrap()), reference);
+
+                    node_process_monitor_destroy(supervisor.node.clone(), reference);
                 }
             }
             Frame::MonitorDown(monitor_down) => {
@@ -215,6 +232,32 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                             .sender
                             .send(ProcessItem::MonitorProcessUpdate(reference, from))
                     });
+            }
+            Frame::Link(link) => {
+                let node = node_register(supervisor.node.clone(), false);
+
+                let process = Pid::local(link.process_id);
+                let from = Pid::remote(link.from_id, node);
+
+                if link.install {
+                    if link_create(process, from, false) {
+                        node_process_link_create(supervisor.node.clone(), from, process);
+                    } else {
+                        let mut link_down =
+                            LinkDown::new(link.process_id, ExitReason::from("noproc"));
+
+                        link_down.links.push(link.from_id);
+
+                        node_send_frame(link_down.into(), node);
+                    }
+                } else {
+                    todo!("Link destroy!!");
+                }
+            }
+            Frame::LinkDown(link_down) => {
+                // Exchange every link locally first (cleaning them up in the process).
+                // Then fire the actual exit signal.
+                todo!("Link Down!! {:?}", link_down);
             }
         }
     }

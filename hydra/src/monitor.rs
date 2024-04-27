@@ -10,6 +10,7 @@ use crate::frame::MonitorDown;
 use crate::node_lookup_remote;
 use crate::node_monitor_destroy;
 use crate::node_process_monitor_create;
+use crate::node_process_monitor_destroy_all;
 use crate::node_register;
 use crate::node_send_frame;
 use crate::Dest;
@@ -35,7 +36,7 @@ pub fn monitor_create(process: Pid, reference: Reference, from: Pid, dest: Optio
         .insert(reference, (from, dest));
 }
 
-/// Destroys a monitor for the given local process and reference, returning `true` if the monitor existed.
+/// Destroys a monitor for the given local process and reference.
 pub fn monitor_destroy(process: Pid, reference: Reference) {
     if process.is_local() {
         MONITORS.alter(&process.id(), |_, mut value| {
@@ -203,7 +204,7 @@ pub fn monitor_process_down(from: Pid, exit_reason: ExitReason) {
         return;
     };
 
-    let mut remote_monitors: BTreeMap<u64, MonitorDown> = BTreeMap::new();
+    let mut remote_monitors: BTreeMap<u64, (MonitorDown, Vec<Reference>)> = BTreeMap::new();
 
     for (reference, (pid, dest)) in references {
         if pid.is_local() {
@@ -220,15 +221,19 @@ pub fn monitor_process_down(from: Pid, exit_reason: ExitReason) {
                     ))
                 });
         } else {
-            let monitor_down = remote_monitors
+            let remote = remote_monitors
                 .entry(pid.node())
-                .or_insert(MonitorDown::new(exit_reason.clone()));
+                .or_insert((MonitorDown::new(exit_reason.clone()), Vec::new()));
 
-            monitor_down.monitors.push(reference.id());
+            remote.0.monitors.push(reference.id());
         }
     }
 
-    for (node, monitor_down) in remote_monitors {
+    for (node, (monitor_down, references)) in remote_monitors {
+        if let Some((name, address)) = node_lookup_remote(node) {
+            node_process_monitor_destroy_all(Node::from((name, address)), references);
+        }
+
         node_send_frame(monitor_down.into(), node);
     }
 }

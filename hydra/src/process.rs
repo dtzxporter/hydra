@@ -16,6 +16,7 @@ use crate::alias_destroy_all;
 use crate::alias_retrieve;
 use crate::link_create;
 use crate::link_destroy;
+use crate::link_install;
 use crate::link_process_down;
 use crate::monitor_create;
 use crate::monitor_destroy;
@@ -260,7 +261,9 @@ impl Process {
             .read()
             .unwrap()
             .processes
-            .contains_key(&pid.id())
+            .get(&pid.id())
+            .map(|process| process.exit_reason.is_none())
+            .unwrap_or_default()
     }
 
     /// Sleeps the current process for the given duration.
@@ -359,13 +362,7 @@ impl Process {
             return;
         }
 
-        link_create(current, pid, false);
-
-        if pid.is_local() {
-            link_create(pid, current, false);
-        } else {
-            //
-        }
+        link_install(pid, current);
     }
 
     /// Removes the link between the calling process and the given process.
@@ -374,10 +371,6 @@ impl Process {
 
         if pid == current {
             return;
-        }
-
-        if pid.is_remote() {
-            unimplemented!("Remote process link unsupported!");
         }
 
         link_destroy(pid, current);
@@ -467,9 +460,11 @@ impl Drop for Process {
 
         drop(registry);
 
-        link_process_down(self.pid, process.exit_reason.clone());
+        let exit_reason = process.exit_reason.unwrap_or_default();
 
-        monitor_process_down(self.pid, process.exit_reason);
+        link_process_down(self.pid, exit_reason.clone());
+
+        monitor_process_down(self.pid, exit_reason);
         monitor_destroy_all(self.monitors.borrow().iter());
 
         alias_destroy_all(self.aliases.borrow().iter());
@@ -534,7 +529,7 @@ where
                 .processes
                 .get_mut(&Process::current().id())
             {
-                process.exit_reason = e.into();
+                process.exit_reason = Some(e.into());
             }
         }
     }));
@@ -597,7 +592,7 @@ where
                     .processes
                     .get_mut(&Process::current().id())
                 {
-                    process.exit_reason = e.into();
+                    process.exit_reason = Some(e.into());
                 }
             }
         });
