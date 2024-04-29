@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 use dashmap::DashMap;
@@ -5,8 +6,12 @@ use dashmap::DashMap;
 use once_cell::sync::Lazy;
 
 use crate::frame::Link;
+use crate::frame::LinkDown;
+
 use crate::node_lookup_remote;
 use crate::node_process_link_create;
+use crate::node_process_link_destroy;
+use crate::node_process_link_destroy_all;
 use crate::node_register;
 use crate::node_send_frame;
 use crate::ExitReason;
@@ -75,10 +80,20 @@ pub fn link_install(process: Pid, from: Pid) {
 
 /// Destroys a link for the given local process.
 pub fn link_destroy(process: Pid, from: Pid) {
-    LINKS.alter(&process.id(), |_, mut value| {
-        value.remove(&from);
-        value
-    });
+    if process.is_local() {
+        LINKS.alter(&process.id(), |_, mut value| {
+            value.remove(&from);
+            value
+        });
+    } else {
+        let link = Link::new(false, process.id(), from.id());
+
+        node_send_frame(link.into(), process.node());
+
+        if let Some((name, address)) = node_lookup_remote(process.node()) {
+            node_process_link_destroy(Node::from((name, address)), process, from);
+        }
+    }
 }
 
 /// Sends the proper exit signal about the given process going down for the given reason.
@@ -87,18 +102,33 @@ pub fn link_process_down(from: Pid, exit_reason: ExitReason) {
         return;
     };
 
+    let mut remote_links: BTreeMap<u64, (LinkDown, Vec<Pid>)> = BTreeMap::new();
+
     let mut registry = PROCESS_REGISTRY.write().unwrap();
 
     for pid in links {
-        if pid.is_remote() {
-            unimplemented!("Remote process link unsupported!");
+        if pid.is_local() {
+            LINKS.alter(&pid.id(), |_, mut value| {
+                value.remove(&from);
+                value
+            });
+
+            registry.exit_signal_linked_process(pid, from, exit_reason.clone());
+        } else {
+            let remote = remote_links
+                .entry(pid.node())
+                .or_insert((LinkDown::new(from.id(), exit_reason.clone()), Vec::new()));
+
+            remote.0.links.push(pid.id());
+            remote.1.push(pid);
+        }
+    }
+
+    for (node, (link_down, links)) in remote_links {
+        if let Some((name, address)) = node_lookup_remote(node) {
+            node_process_link_destroy_all(Node::from((name, address)), links, from);
         }
 
-        LINKS.alter(&pid.id(), |_, mut value| {
-            value.remove(&from);
-            value
-        });
-
-        registry.exit_signal_linked_process(pid, from, exit_reason.clone());
+        node_send_frame(link_down.into(), node);
     }
 }

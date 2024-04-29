@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -59,7 +60,7 @@ static NODE_MONITORS: Lazy<DashMap<Node, BTreeMap<Reference, NodeMonitor>>> =
     Lazy::new(DashMap::new);
 
 /// A collection of node links installed.
-static NODE_LINKS: Lazy<DashMap<Node, BTreeMap<Pid, u64>>> = Lazy::new(DashMap::new);
+static NODE_LINKS: Lazy<DashMap<Node, BTreeSet<(Pid, u64)>>> = Lazy::new(DashMap::new);
 
 /// A collection of node:vec<msg> pending messages for a node.
 static NODE_PENDING_MESSAGES: Lazy<DashMap<Node, Vec<Frame>>> = Lazy::new(DashMap::new);
@@ -463,12 +464,30 @@ pub fn node_process_monitor_destroy_all(node: Node, references: Vec<Reference>) 
     });
 }
 
+/// Destroys a node process link for the given node by the link process.
+pub fn node_process_link_destroy(node: Node, link: Pid, from: Pid) {
+    NODE_LINKS.alter(&node, |_, mut value| {
+        value.remove(&(link, from.id()));
+        value
+    });
+}
+
+/// Destroys all process links for the given node by their link processes.
+pub fn node_process_link_destroy_all(node: Node, links: Vec<Pid>, from: Pid) {
+    NODE_LINKS.alter(&node, |_, mut value| {
+        for link in links {
+            value.remove(&(link, from.id()));
+        }
+        value
+    });
+}
+
 /// Creates a monitor for the given node and process from the given linked process.
 pub fn node_process_link_create(node: Node, process: Pid, from: Pid) {
     NODE_LINKS
         .entry(node)
         .or_default()
-        .insert(process, from.id());
+        .insert((process, from.id()));
 }
 
 /// Removes a monitor for the given node and reference.
@@ -479,7 +498,15 @@ pub fn node_monitor_destroy(node: Node, reference: Reference) {
     });
 }
 
-/// Fires when a remote process has notified the local node that it went down.
+/// Removes a link for the given node and process.
+pub fn node_link_destroy(node: Node, process: Pid, from: Pid) {
+    NODE_LINKS.alter(&node, |_, mut value| {
+        value.remove(&(process, from.id()));
+        value
+    });
+}
+
+/// Fires when a remote process has notified the local node that it went down for a monitor.
 pub fn node_process_monitor_down(node: Node, reference: Reference, exit_reason: ExitReason) {
     let mut monitor: Option<NodeMonitor> = None;
 
@@ -502,6 +529,23 @@ pub fn node_process_monitor_down(node: Node, reference: Reference, exit_reason: 
                     exit_reason,
                 ))
             });
+    }
+}
+
+/// Fires when a remote process has notified the local node that it went down for a link.
+pub fn node_process_link_down(node: Node, process: Pid, from: Pid, exit_reason: ExitReason) {
+    let mut found = false;
+
+    NODE_LINKS.alter(&node, |_, mut value| {
+        found = value.remove(&(from, process.id()));
+        value
+    });
+
+    if found {
+        PROCESS_REGISTRY
+            .write()
+            .unwrap()
+            .exit_signal_linked_process(process, from, exit_reason);
     }
 }
 

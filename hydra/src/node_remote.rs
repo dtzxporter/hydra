@@ -23,12 +23,15 @@ use crate::frame::Ping;
 use crate::frame::Pong;
 
 use crate::link_create;
+use crate::link_destroy;
 use crate::monitor_create;
 use crate::monitor_destroy;
 use crate::node_accept;
 use crate::node_forward_send;
+use crate::node_link_destroy;
 use crate::node_local_process;
 use crate::node_process_link_create;
+use crate::node_process_link_down;
 use crate::node_process_monitor_cleanup;
 use crate::node_process_monitor_destroy;
 use crate::node_process_monitor_down;
@@ -251,13 +254,24 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                         node_send_frame(link_down.into(), node);
                     }
                 } else {
-                    todo!("Link destroy!!");
+                    link_destroy(process, from);
+
+                    node_link_destroy(supervisor.node.clone(), from, process);
                 }
             }
             Frame::LinkDown(link_down) => {
-                // Exchange every link locally first (cleaning them up in the process).
-                // Then fire the actual exit signal.
-                todo!("Link Down!! {:?}", link_down);
+                let node = node_register(supervisor.node.clone(), false);
+
+                let from = Pid::remote(link_down.from_id, node);
+
+                for link in link_down.links {
+                    node_process_link_down(
+                        supervisor.node.clone(),
+                        Pid::local(link),
+                        from,
+                        link_down.exit_reason.clone(),
+                    );
+                }
             }
         }
     }

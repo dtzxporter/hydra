@@ -10,6 +10,7 @@ use crate::frame::MonitorDown;
 use crate::node_lookup_remote;
 use crate::node_monitor_destroy;
 use crate::node_process_monitor_create;
+use crate::node_process_monitor_destroy;
 use crate::node_process_monitor_destroy_all;
 use crate::node_register;
 use crate::node_send_frame;
@@ -47,6 +48,10 @@ pub fn monitor_destroy(process: Pid, reference: Reference) {
         let monitor = Monitor::new(false, Some(process.id()), None, None, reference.id());
 
         node_send_frame(monitor.into(), reference.node());
+
+        if let Some((name, address)) = node_lookup_remote(reference.node()) {
+            node_process_monitor_destroy(Node::from((name, address)), reference);
+        }
     }
 }
 
@@ -226,6 +231,7 @@ pub fn monitor_process_down(from: Pid, exit_reason: ExitReason) {
                 .or_insert((MonitorDown::new(exit_reason.clone()), Vec::new()));
 
             remote.0.monitors.push(reference.id());
+            remote.1.push(reference);
         }
     }
 

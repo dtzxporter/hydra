@@ -374,7 +374,6 @@ impl Process {
         }
 
         link_destroy(pid, current);
-        link_destroy(current, pid);
     }
 
     /// Starts monitoring the given process from the calling process. If the process is already dead a message is sent immediately.
