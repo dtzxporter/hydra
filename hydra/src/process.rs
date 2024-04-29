@@ -23,6 +23,7 @@ use crate::monitor_destroy;
 use crate::monitor_destroy_all;
 use crate::monitor_install;
 use crate::monitor_process_down;
+use crate::node_process_send_exit;
 use crate::node_process_send_with_alias;
 use crate::node_process_send_with_name;
 use crate::node_process_send_with_pid;
@@ -436,14 +437,14 @@ impl Process {
     pub fn exit<E: Into<ExitReason>>(pid: Pid, exit_reason: E) {
         let exit_reason = exit_reason.into();
 
-        if pid.is_remote() {
-            unimplemented!("Remote process exit unsupported!");
+        if pid.is_local() {
+            PROCESS_REGISTRY
+                .write()
+                .unwrap()
+                .exit_process(pid, Self::current(), exit_reason);
+        } else {
+            node_process_send_exit(pid, Self::current(), exit_reason);
         }
-
-        PROCESS_REGISTRY
-            .write()
-            .unwrap()
-            .exit_process(pid, Self::current(), exit_reason);
     }
 }
 

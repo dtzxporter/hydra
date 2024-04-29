@@ -273,6 +273,17 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                     );
                 }
             }
+            Frame::Exit(exit) => {
+                let node = node_register(supervisor.node.clone(), false);
+
+                let process = Pid::local(exit.process_id);
+                let from = Pid::remote(exit.from_id, node);
+
+                PROCESS_REGISTRY
+                    .write()
+                    .unwrap()
+                    .exit_process(process, from, exit.exit_reason);
+            }
         }
     }
 }

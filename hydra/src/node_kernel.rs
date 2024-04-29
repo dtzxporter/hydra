@@ -1,3 +1,4 @@
+use crate::frame::Exit;
 use crate::frame::Frame;
 use crate::frame::Send;
 use crate::frame::SendTarget;
@@ -6,6 +7,7 @@ use crate::alias_retrieve;
 use crate::node_register;
 use crate::node_send_frame;
 use crate::serialize_value;
+use crate::ExitReason;
 use crate::Node;
 use crate::Pid;
 use crate::ProcessItem;
@@ -49,6 +51,13 @@ pub fn node_forward_send(send: Send) {
             });
         }
     }
+}
+
+/// Sends an exit signal to the given pid.
+pub fn node_process_send_exit(pid: Pid, from: Pid, exit_reason: ExitReason) {
+    let exit = Exit::new(pid.id(), from.id(), exit_reason);
+
+    node_send_frame(exit.into(), pid.node());
 }
 
 /// Sends the given message to the remote node with the given pid.

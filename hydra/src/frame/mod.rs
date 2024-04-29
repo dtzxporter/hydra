@@ -17,6 +17,7 @@ use bytes::BytesMut;
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Encoder;
 
+mod exit;
 mod hello;
 mod link;
 mod link_down;
@@ -27,6 +28,7 @@ mod ping;
 mod pong;
 mod send;
 
+pub use exit::*;
 pub use hello::*;
 pub use link::*;
 pub use link_down::*;
@@ -54,6 +56,7 @@ pub enum Frame {
     MonitorUpdate(MonitorUpdate),
     Link(Link),
     LinkDown(LinkDown),
+    Exit(Exit),
 }
 
 impl From<Hello> for Frame {
@@ -107,6 +110,12 @@ impl From<Link> for Frame {
 impl From<LinkDown> for Frame {
     fn from(value: LinkDown) -> Self {
         Self::LinkDown(value)
+    }
+}
+
+impl From<Exit> for Frame {
+    fn from(value: Exit) -> Self {
+        Self::Exit(value)
     }
 }
 
