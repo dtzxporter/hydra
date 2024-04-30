@@ -103,9 +103,10 @@ pub trait GenServer: Sized + Send + 'static {
                     }
                 });
 
-            let result =
-                Process::timeout(timeout.unwrap_or(Duration::from_millis(u64::MAX)), receiver)
-                    .await;
+            let result = match timeout {
+                Some(duration) => Process::timeout(duration, receiver).await,
+                None => Ok(receiver.await),
+            };
 
             match result {
                 Ok(Message::System(SystemMessage::ProcessDown(_, _, exit_reason))) => {
