@@ -12,6 +12,8 @@ pub enum ExitReason {
     Normal,
     /// Process was killed.
     Kill,
+    /// Process ignored reason.
+    Ignore,
     /// Process custom exit reason.
     Custom(String),
 }
@@ -25,6 +27,11 @@ impl ExitReason {
     /// Whether or not the reason is kill.
     pub const fn is_kill(&self) -> bool {
         matches!(self, ExitReason::Kill)
+    }
+
+    /// Whether or not the reason is ignore.
+    pub const fn is_ignore(&self) -> bool {
+        matches!(self, ExitReason::Ignore)
     }
 
     /// Whether or not the reason is custom.

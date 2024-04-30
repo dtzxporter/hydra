@@ -36,7 +36,7 @@ impl ProcessRegistry {
         let trapping_exits = process.flags().contains(ProcessFlags::TRAP_EXIT);
 
         match exit_reason {
-            ExitReason::Normal => {
+            ExitReason::Normal | ExitReason::Ignore => {
                 if pid == from {
                     process.exit_reason = Some(exit_reason);
                     process.handle.abort();

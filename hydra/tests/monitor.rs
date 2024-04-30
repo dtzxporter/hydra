@@ -35,7 +35,7 @@ async fn monitor_named_works() {
         panic!("we're going down!");
     });
 
-    Process::register(pid, "monitor_me");
+    Process::register(pid, "monitor_me").expect("Failed to register process!");
 
     let reference = Process::monitor("monitor_me");
 

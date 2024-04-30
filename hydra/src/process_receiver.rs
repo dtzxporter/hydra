@@ -96,6 +96,80 @@ impl ProcessReceiver {
         }
     }
 
+    /// Drops a single message that is already in the message queue.
+    ///
+    /// This will panic if `ignore_type` was not called and the type doesn't match.
+    pub fn drop<T: Receivable, F: (Fn(&Message<&T>) -> bool) + Send>(self, filter: F) {
+        let result = PROCESS.with(|process| {
+            let mut items = process.items.borrow_mut();
+            let mut found: Option<usize> = None;
+
+            for (index, item) in items.iter_mut().enumerate() {
+                match process_item::<T>(item) {
+                    Ok(Some(message)) => {
+                        if filter(&message) {
+                            found = Some(index);
+                            break;
+                        }
+                    }
+                    Ok(None) => {
+                        continue;
+                    }
+                    Err(_) => {
+                        if self.ignore_type {
+                            continue;
+                        } else {
+                            panic!("Unsupported message type!")
+                        }
+                    }
+                }
+            }
+
+            if let Some(found) = found {
+                items.remove(found);
+                return true;
+            }
+
+            false
+        });
+
+        if result {
+            return;
+        }
+
+        let receiver = PROCESS.with(|process| process.receiver.clone());
+        let mut found = false;
+
+        for mut item in receiver.drain() {
+            if found {
+                PROCESS.with(|process| process.items.borrow_mut().push(item));
+                continue;
+            }
+
+            match process_item::<T>(&mut item) {
+                Ok(Some(message)) => {
+                    if filter(&message) {
+                        found = true;
+                        continue;
+                    }
+
+                    PROCESS.with(|process| process.items.borrow_mut().push(item));
+                }
+                Ok(None) => {
+                    continue;
+                }
+                Err(_) => {
+                    if self.ignore_type {
+                        PROCESS.with(|process| process.items.borrow_mut().push(item));
+                        continue;
+                    } else {
+                        panic!("Unsupported message type!")
+                    }
+                }
+            }
+        }
+    }
+
     /// Receives a single message.
     ///
     /// This will panic if `ignore_type` was not called and the type doesn't match.

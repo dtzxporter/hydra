@@ -1,8 +1,13 @@
 mod alias;
+mod argument_error;
+mod call_error;
 mod catch_unwind;
 mod dest;
 mod exit_reason;
 mod frame;
+mod from;
+mod gen_server;
+mod gen_server_options;
 mod link;
 mod local;
 mod message;
@@ -29,8 +34,13 @@ mod serialize;
 mod system_message;
 mod timeout;
 
+pub use argument_error::*;
+pub use call_error::*;
 pub use dest::*;
 pub use exit_reason::*;
+pub use from::*;
+pub use gen_server::*;
+pub use gen_server_options::*;
 pub use local::*;
 pub use message::*;
 pub use monitor::*;

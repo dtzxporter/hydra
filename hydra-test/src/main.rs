@@ -5,13 +5,9 @@ use serde::Serialize;
 
 use hydra::Local;
 use hydra::Message;
-use hydra::Pid;
 use hydra::Process;
 use hydra::ProcessFlags;
 use hydra::SystemMessage;
-
-use hydra_platform::GenServer;
-use hydra_platform::Reply;
 
 #[derive(Debug, Serialize, Deserialize)]
 enum MyMessage {
@@ -21,34 +17,34 @@ enum MyMessage {
     Resp(i32),
 }
 
-struct MyServer;
+// struct MyServer;
 
-impl GenServer for MyServer {
-    type InitArg = ();
-    type Message = MyMessage;
+// impl GenServer for MyServer {
+//     type InitArg = ();
+//     type Message = MyMessage;
 
-    async fn init(&mut self, _: Self::InitArg) {
-        //
-    }
+//     async fn init(&mut self, _: Self::InitArg) {
+//         //
+//     }
 
-    async fn handle_cast(&mut self, from: Pid, message: Self::Message) {
-        println!(
-            "My gen server got a cool message: from: {:?} {:?}",
-            from, message
-        );
-    }
+//     async fn handle_cast(&mut self, from: Pid, message: Self::Message) {
+//         println!(
+//             "My gen server got a cool message: from: {:?} {:?}",
+//             from, message
+//         );
+//     }
 
-    async fn handle_call(
-        &mut self,
-        _reply: Reply<Self::Message>,
-        message: Self::Message,
-    ) -> Option<Self::Message> {
-        match message {
-            MyMessage::Call(start) => Some(MyMessage::Resp(start * 5)),
-            _ => unimplemented!(),
-        }
-    }
-}
+//     async fn handle_call(
+//         &mut self,
+//         _reply: Reply<Self::Message>,
+//         message: Self::Message,
+//     ) -> Option<Self::Message> {
+//         match message {
+//             MyMessage::Call(start) => Some(MyMessage::Resp(start * 5)),
+//             _ => unimplemented!(),
+//         }
+//     }
+// }
 
 #[hydra::main]
 async fn main() {

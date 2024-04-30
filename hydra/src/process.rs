@@ -27,6 +27,7 @@ use crate::node_process_send_exit;
 use crate::node_process_send_with_alias;
 use crate::node_process_send_with_name;
 use crate::node_process_send_with_pid;
+use crate::ArgumentError;
 use crate::AsyncCatchUnwind;
 use crate::CatchUnwind;
 use crate::Dest;
@@ -283,28 +284,32 @@ impl Process {
     }
 
     /// Registers the given [Pid] under `name` if the process is local, active, and the name is not already registered.
-    pub fn register<S: Into<String>>(pid: Pid, name: S) {
+    pub fn register<S: Into<String>>(pid: Pid, name: S) -> Result<(), ArgumentError> {
         let name = name.into();
 
         if pid.is_remote() {
-            panic!("Expected local pid for register!");
+            return Err(ArgumentError::from("Expected local pid for register!"));
         }
 
         let mut registry = PROCESS_REGISTRY.write().unwrap();
 
         if registry.named_processes.contains_key(&name) {
-            drop(registry);
-            panic!("Name {:?} registered to another process!", name);
+            return Err(ArgumentError::from(format!(
+                "Name {:?} registered to another process!",
+                name
+            )));
         }
 
-        let process = registry
-            .processes
-            .get(&pid.id())
-            .expect("Process does not exist!");
+        let process = match registry.processes.get(&pid.id()) {
+            Some(process) => process,
+            None => return Err(ArgumentError::from("Process does not exist!")),
+        };
 
         if process.name.is_some() {
-            drop(registry);
-            panic!("Process {:?} was already registered!", pid);
+            return Err(ArgumentError::from(format!(
+                "Process {:?} was already registered!",
+                pid
+            )));
         }
 
         if let Some(process) = registry.processes.get_mut(&pid.id()) {
@@ -312,6 +317,8 @@ impl Process {
         }
 
         registry.named_processes.insert(name, pid.id());
+
+        Ok(())
     }
 
     /// Removes the registered `name`, associated with a [Pid].
