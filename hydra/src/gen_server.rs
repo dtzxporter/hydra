@@ -253,7 +253,7 @@ async fn start_gen_server<T: GenServer>(
 
         match timeout {
             Ok(Ok(())) => {
-                // GenServer was successfully started.
+                tx.send(Ok(())).expect("Failed to notify parent process!");
             }
             Ok(Err(reason)) => {
                 tx.send(Err(reason))

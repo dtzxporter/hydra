@@ -7,14 +7,14 @@ use serde::Serialize;
 /// Represents the reason a process exits.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub enum ExitReason {
-    /// Process exited due to normal reasons, function ended, or manually stopped.
+    /// Exited due to normal reasons, function ended, or manually stopped.
     #[default]
     Normal,
-    /// Process was killed.
+    /// Forceful kill reason.
     Kill,
-    /// Process ignored reason.
+    /// Ignored reason.
     Ignore,
-    /// Process custom exit reason.
+    /// Custom exit reason.
     Custom(String),
 }
 
