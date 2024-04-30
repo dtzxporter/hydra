@@ -27,6 +27,8 @@ enum GenServerMessage<T: Send + 'static> {
     Call(Pid, Reference, T),
     #[serde(rename = "$gen_reply")]
     CallReply(Reference, T),
+    #[serde(rename = "$gen_stop")]
+    Stop(ExitReason),
 }
 
 /// A trait for implementing the server of a client-server relation.
@@ -67,6 +69,60 @@ pub trait GenServer: Sized + Send + 'static {
         options: GenServerOptions,
     ) -> impl Future<Output = Result<Pid, ExitReason>> + Send {
         async { start_gen_server(self, init_arg, options, true).await }
+    }
+
+    /// Synchronously stops the server with the given `reason`.
+    ///
+    /// The `terminate` callback of the given `server` will be invoked before exiting. This function returns an error if the process
+    /// exits with a reason other than the given `reason`.
+    ///
+    /// The default timeout is infinity.
+    fn stop<T: Into<Dest> + Send>(
+        server: T,
+        reason: ExitReason,
+        timeout: Option<Duration>,
+    ) -> impl Future<Output = Result<(), ExitReason>> {
+        async move {
+            let server = server.into();
+            let monitor = Process::monitor(server.clone());
+
+            Process::send(
+                server,
+                GenServerMessage::<Self::Message>::Stop(reason.clone()),
+            );
+
+            let receiver = Process::receiver()
+                .ignore_type()
+                .select::<GenServerMessage<Self::Message>, _>(|message| {
+                    match message {
+                        Message::System(SystemMessage::ProcessDown(_, tag, _)) => {
+                            // Make sure the tag matches the monitor.
+                            *tag == monitor
+                        }
+                        _ => false,
+                    }
+                });
+
+            let result =
+                Process::timeout(timeout.unwrap_or(Duration::from_millis(u64::MAX)), receiver)
+                    .await;
+
+            match result {
+                Ok(Message::System(SystemMessage::ProcessDown(_, _, exit_reason))) => {
+                    if reason == exit_reason {
+                        Ok(())
+                    } else {
+                        Err(exit_reason)
+                    }
+                }
+                Err(_) => {
+                    Process::demonitor(monitor);
+
+                    Err(ExitReason::from("timeout"))
+                }
+                _ => unreachable!(),
+            }
+        }
     }
 
     /// Casts a request to the `server` without waiting for a response.
@@ -301,6 +357,11 @@ async fn start_gen_server<T: GenServer>(
 
                         return Process::exit(Process::current(), reason);
                     }
+                }
+                Message::User(GenServerMessage::Stop(reason)) => {
+                    gen_server.terminate(reason.clone()).await;
+
+                    return Process::exit(Process::current(), reason);
                 }
                 Message::System(system) => {
                     if let Err(reason) = gen_server.handle_info(Message::System(system)).await {
