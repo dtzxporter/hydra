@@ -18,7 +18,7 @@ pub fn serialize_value<T: Serialize>(value: &T) -> Vec<u8> {
 }
 
 /// Deserializes a value.
-pub fn deserialize_slice<T: DeserializeOwned>(value: &[u8]) -> io::Result<T> {
+pub fn deserialize_value<T: DeserializeOwned>(value: &[u8]) -> io::Result<T> {
     #[cfg(feature = "json")]
     {
         serde_json::from_slice(value)

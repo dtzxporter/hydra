@@ -1,4 +1,4 @@
-use crate::deserialize_slice;
+use crate::deserialize_value;
 use crate::Message;
 use crate::ProcessItem;
 use crate::ProcessMonitor;
@@ -202,7 +202,7 @@ fn process_item<T: Receivable>(item: &mut ProcessItem) -> Result<Option<Message<
     // Special case for serialized messages, we'll convert them to deserialized one time to prevent
     // deserializing the value more than once, then convert to a reference.
     if let ProcessItem::UserRemoteMessage(serialized) = item {
-        let result: Result<T, _> = deserialize_slice(serialized);
+        let result: Result<T, _> = deserialize_value(serialized);
 
         if let Ok(result) = result {
             *item = ProcessItem::UserLocalMessage(Box::new(result));
