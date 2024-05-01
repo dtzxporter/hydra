@@ -99,7 +99,7 @@ impl ProcessReceiver {
     /// Drops a single message that is already in the message queue.
     ///
     /// This will panic if `ignore_type` was not called and the type doesn't match.
-    pub fn drop<T: Receivable, F: (Fn(&Message<&T>) -> bool) + Send>(self, filter: F) {
+    pub fn drop<T: Receivable, F: (FnMut(&Message<&T>) -> bool) + Send>(self, mut filter: F) {
         let result = PROCESS.with(|process| {
             let mut items = process.items.borrow_mut();
             let mut found: Option<usize> = None;
