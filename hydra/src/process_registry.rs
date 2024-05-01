@@ -55,7 +55,10 @@ impl ProcessRegistry {
                 process.handle.abort();
             }
             ExitReason::Custom(_) => {
-                if trapping_exits {
+                if pid == from || !trapping_exits {
+                    process.exit_reason = Some(exit_reason);
+                    process.handle.abort();
+                } else {
                     process
                         .sender
                         .send(ProcessItem::SystemMessage(SystemMessage::Exit(
@@ -63,9 +66,6 @@ impl ProcessRegistry {
                             exit_reason,
                         )))
                         .unwrap();
-                } else {
-                    process.exit_reason = Some(exit_reason);
-                    process.handle.abort();
                 }
             }
         }

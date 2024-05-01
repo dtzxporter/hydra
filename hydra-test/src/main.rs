@@ -3,11 +3,14 @@ use std::time::Instant;
 use serde::Deserialize;
 use serde::Serialize;
 
+use hydra::ChildSpec;
 use hydra::ExitReason;
 use hydra::From;
 use hydra::GenServer;
 use hydra::GenServerOptions;
 use hydra::Local;
+use hydra::SupervisionStrategy;
+use hydra::Supervisor;
 
 #[derive(Debug, Serialize, Deserialize)]
 enum MyMessage {
@@ -47,6 +50,21 @@ async fn main() {
         .await
         .expect("Failed to start MyServer!");
 
+    let children = [
+        ChildSpec::new("server")
+            .start(|| MyServer::start_link(MyServer, (), GenServerOptions::new())),
+        ChildSpec::new("server2")
+            .start(|| MyServer::start_link(MyServer, (), GenServerOptions::new())),
+    ];
+
+    let supervisor = Supervisor::with_children(children)
+        .strategy(SupervisionStrategy::OneForOne)
+        .start_link(GenServerOptions::new())
+        .await
+        .expect("Failed to start supervisor!");
+
+    println!("Supervisor started: {:?}", supervisor);
+
     let start = std::time::Instant::now();
 
     for _ in 0..500 {
@@ -55,5 +73,5 @@ async fn main() {
             .expect("Failed to call MyServer!");
     }
 
-    println!("average req/reply latency: {:?}", start.elapsed() / 500);
+    println!("Average req/reply latency: {:?}", start.elapsed() / 500);
 }
