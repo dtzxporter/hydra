@@ -166,6 +166,16 @@ impl Process {
         }
     }
 
+    /// Sends a single message to `dest` with the given `message` after the given `duration`.
+    pub fn send_after<D: Into<Dest>, M: Receivable>(dest: D, message: M, duration: Duration) {
+        let dest = dest.into();
+
+        tokio::spawn(async move {
+            Process::sleep(duration).await;
+            Process::send(dest, message);
+        });
+    }
+
     /// Creates a receiver with optional filtering for a single message from the current processes mailbox.
     #[must_use]
     pub fn receiver() -> ProcessReceiver {
