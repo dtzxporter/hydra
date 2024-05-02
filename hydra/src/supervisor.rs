@@ -1,8 +1,10 @@
 use std::collections::BTreeSet;
-use std::collections::VecDeque;
 use std::pin::Pin;
 use std::time::Duration;
 use std::time::Instant;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::AutoShutdown;
 use crate::ChildSpec;
@@ -25,6 +27,13 @@ struct SupervisedChild {
     pid: Option<Pid>,
 }
 
+/// A supervisor message.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SupervisorMessage {
+    TryAgainRestartPid(Pid),
+    TryAgainRestartId(String),
+}
+
 /// The supervision strategy to use for each child.
 #[derive(Debug, Clone, Copy)]
 pub enum SupervisionStrategy {
@@ -41,7 +50,7 @@ pub enum SupervisionStrategy {
 /// Supervision trees provide fault-tolerance and encapsulate how our applications start and shutdown.
 pub struct Supervisor {
     children: Vec<SupervisedChild>,
-    restarts: VecDeque<Instant>,
+    restarts: Vec<Instant>,
     strategy: SupervisionStrategy,
     auto_shutdown: AutoShutdown,
     max_restarts: usize,
@@ -53,7 +62,7 @@ impl Supervisor {
     pub const fn new() -> Self {
         Self {
             children: Vec::new(),
-            restarts: VecDeque::new(),
+            restarts: Vec::new(),
             strategy: SupervisionStrategy::OneForOne,
             auto_shutdown: AutoShutdown::Never,
             max_restarts: 3,
@@ -183,24 +192,142 @@ impl Supervisor {
         Ok(())
     }
 
+    /// Restarts a child that exited for the given `reason`.
     async fn restart_child(&mut self, pid: Pid, reason: ExitReason) -> Result<(), ExitReason> {
         let Some(index) = self.find_child(pid) else {
             return Ok(());
         };
 
-        // https://github.com/erlang/otp/blob/master/lib/stdlib/src/supervisor.erl#L1157
         let child = &mut self.children[index];
 
-        // This child has died, do something!
+        // Permanent children are always restarted.
+        if child.is_permanent() {
+            if self.add_restart() {
+                return Err(ExitReason::from("shutdown"));
+            }
+
+            self.restart(index).await;
+
+            return Ok(());
+        }
+
+        // If it's not permanent, check if it's a normal reason.
+        if reason.is_normal() || reason == "shutdown" {
+            if self.check_auto_shutdown(index) {
+                return Err(ExitReason::from("shutdown"));
+            } else {
+                return Ok(());
+            }
+        }
+
+        // Not a normal reason, check if transient.
+        if child.is_transient() {
+            if self.add_restart() {
+                return Err(ExitReason::from("shutdown"));
+            }
+
+            self.restart(index).await;
+
+            return Ok(());
+        }
+
+        // Not transient, check if temporary and clean up.
+        if child.is_temporary() {
+            self.children.remove(index);
+
+            if self.check_auto_shutdown(index) {
+                return Err(ExitReason::from("shutdown"));
+            }
+        }
 
         Ok(())
     }
 
-    fn add_restart(&mut self) {
-        // https://github.com/erlang/otp/blob/master/lib/stdlib/src/supervisor.erl#L2075
-        let now = Instant::now();
+    /// Restarts one or more children starting with the given `index` based on the current strategy.
+    async fn restart(&mut self, index: usize) {
+        match self.strategy {
+            SupervisionStrategy::OneForOne => {
+                match self.start_child(index).await {
+                    Ok(pid) => {
+                        self.children[index].pid = pid;
+                    }
+                    Err(reason) => {
+                        let id = self.children[index].id();
+
+                        println!("Eventually report this reason: {:?}", reason);
+
+                        Supervisor::cast(
+                            Process::current(),
+                            SupervisorMessage::TryAgainRestartId(id),
+                        );
+                    }
+                };
+            }
+            SupervisionStrategy::RestForOne => {
+                //
+            }
+            _ => unimplemented!(),
+        }
     }
 
+    /// Starts the given child by it's index and returns what the result was.
+    async fn start_child(&mut self, index: usize) -> Result<Option<Pid>, ExitReason> {
+        let child = &mut self.children[index];
+        let start_child = Pin::from(child.spec.start.as_ref().unwrap()()).await;
+
+        match start_child {
+            Ok(pid) => Ok(Some(pid)),
+            Err(reason) => {
+                if reason.is_ignore() {
+                    Ok(None)
+                } else {
+                    Err(reason)
+                }
+            }
+        }
+    }
+
+    /// Checks whether or not we should automatically shutdown the supervisor. Returns `true` if so.
+    fn check_auto_shutdown(&mut self, index: usize) -> bool {
+        if matches!(self.auto_shutdown, AutoShutdown::Never) {
+            return false;
+        }
+
+        let child = &mut self.children[index];
+
+        if !child.spec.significant {
+            return false;
+        }
+
+        if matches!(self.auto_shutdown, AutoShutdown::AnySignificant) {
+            return true;
+        }
+
+        self.children.iter().any(|child| {
+            if child.pid.is_none() {
+                return false;
+            }
+
+            child.spec.significant
+        })
+    }
+
+    /// Adds another restart to the backlog and returns `true` if we've exceeded our quota of restarts.
+    fn add_restart(&mut self) -> bool {
+        let now = Instant::now();
+        let threshold = now - self.max_duration;
+
+        self.restarts.retain(|restart| *restart >= threshold);
+        self.restarts.push(now);
+
+        if self.restarts.len() > self.max_restarts {
+            return true;
+        }
+
+        false
+    }
+
+    /// Checks to make sure all of the child specifications have unique ids.
     fn check_child_specs(&mut self) {
         let mut ids: BTreeSet<&str> = BTreeSet::new();
 
@@ -211,6 +338,7 @@ impl Supervisor {
         }
     }
 
+    /// Finds a child by the given `pid`.
     fn find_child(&mut self, pid: Pid) -> Option<usize> {
         self.children
             .iter()
@@ -219,9 +347,24 @@ impl Supervisor {
 }
 
 impl SupervisedChild {
+    /// Returns `true` if the child is a permanent process.
+    pub const fn is_permanent(&self) -> bool {
+        matches!(self.spec.restart, Restart::Permanent)
+    }
+
+    /// Returns `true` if the child is a transient process.
+    pub const fn is_transient(&self) -> bool {
+        matches!(self.spec.restart, Restart::Transient)
+    }
+
     /// Returns `true` if the child is a temporary process.
     pub const fn is_temporary(&self) -> bool {
         matches!(self.spec.restart, Restart::Temporary)
+    }
+
+    /// Returns the unique id of the child.
+    pub fn id(&self) -> String {
+        self.spec.id.clone()
     }
 
     /// Returns how the child should be terminated.
@@ -238,7 +381,7 @@ impl SupervisedChild {
 
 impl GenServer for Supervisor {
     type InitArg = ();
-    type Message = ();
+    type Message = SupervisorMessage;
 
     async fn init(&mut self, _: Self::InitArg) -> Result<(), ExitReason> {
         Process::set_flags(ProcessFlags::TRAP_EXIT);
@@ -256,6 +399,7 @@ impl GenServer for Supervisor {
     }
 }
 
+/// Terminates the given `pid` using the given `shutdown` method.
 async fn shutdown(pid: Pid, shutdown: Shutdown) -> Result<(), ExitReason> {
     let monitor = Process::monitor(pid);
 
@@ -266,6 +410,7 @@ async fn shutdown(pid: Pid, shutdown: Shutdown) -> Result<(), ExitReason> {
     }
 }
 
+/// Terminates the given `pid` by forcefully killing it and waiting for the `monitor` to fire.
 async fn shutdown_brutal_kill(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
     Process::exit(pid, ExitReason::Kill);
 
@@ -291,6 +436,8 @@ async fn shutdown_brutal_kill(pid: Pid, monitor: Reference) -> Result<(), ExitRe
     Ok(())
 }
 
+/// Terminates the given `pid` by gracefully waiting for `timeout`
+/// then forcefully kills it as necessary while waiting for `monitor` to fire.
 async fn shutdown_timeout(
     pid: Pid,
     monitor: Reference,
@@ -323,6 +470,7 @@ async fn shutdown_timeout(
     }
 }
 
+/// Terminates the given `pid` by gracefully waiting indefinitely for the `monitor` to fire.
 async fn shutdown_infinity(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
     Process::exit(pid, ExitReason::from("shutdown"));
 
@@ -348,6 +496,9 @@ async fn shutdown_infinity(pid: Pid, monitor: Reference) -> Result<(), ExitReaso
     Ok(())
 }
 
+/// Unlinks the given process and ensures that any pending exit signal is flushed from the message queue.
+///
+/// Returns the real [ExitReason] or the `default_reason` if no signal was found.
 fn unlink_flush(pid: Pid, default_reason: ExitReason) -> ExitReason {
     Process::unlink(pid);
 
