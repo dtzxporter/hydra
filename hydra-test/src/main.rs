@@ -1,5 +1,7 @@
+use std::time::Duration;
 use std::time::Instant;
 
+use hydra::Process;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -18,6 +20,7 @@ enum MyMessage {
     Bye(Vec<u8>, Local<Instant>),
     Call(i32),
     Resp(String),
+    Crash,
 }
 
 struct MyServer;
@@ -27,6 +30,13 @@ impl GenServer for MyServer {
     type Message = MyMessage;
 
     async fn init(&mut self, _init_arg: Self::InitArg) -> Result<(), ExitReason> {
+        let id = Process::current();
+
+        Process::spawn(async move {
+            Process::sleep(Duration::from_secs(1)).await;
+            MyServer::cast(id, MyMessage::Crash);
+        });
+
         Ok(())
     }
 
@@ -40,6 +50,15 @@ impl GenServer for MyServer {
             _ => Err(ExitReason::Kill),
         }
     }
+
+    async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
+        match message {
+            MyMessage::Crash => {
+                panic!("Whoops! We crashed!");
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 #[hydra::main]
@@ -48,7 +67,7 @@ async fn main() {
 
     let server = MyServer;
     let server = server
-        .start_link((), GenServerOptions::new())
+        .start((), GenServerOptions::new())
         .await
         .expect("Failed to start MyServer!");
 
@@ -76,4 +95,8 @@ async fn main() {
     }
 
     tracing::info!("Average req/reply latency: {:?}", start.elapsed() / 500);
+
+    loop {
+        let _ = Process::receiver().ignore_type().receive::<()>().await;
+    }
 }

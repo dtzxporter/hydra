@@ -348,7 +348,7 @@ impl Supervisor {
 
         if self.restarts.len() > self.max_restarts {
             #[cfg(feature = "tracing")]
-            tracing::error!(restarts = ?self.restarts, "Reached max restart intensity.");
+            tracing::error!(restarts = ?self.restarts.len(), threshold = ?self.max_duration, "Reached max restart intensity.");
 
             return true;
         }
