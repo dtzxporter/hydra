@@ -44,6 +44,8 @@ impl GenServer for MyServer {
 
 #[hydra::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+
     let server = MyServer;
     let server = server
         .start_link((), GenServerOptions::new())
@@ -63,7 +65,7 @@ async fn main() {
         .await
         .expect("Failed to start supervisor!");
 
-    println!("Supervisor started: {:?}", supervisor);
+    tracing::info!("Supervisor started: {:?}", supervisor);
 
     let start = std::time::Instant::now();
 
@@ -73,5 +75,5 @@ async fn main() {
             .expect("Failed to call MyServer!");
     }
 
-    println!("Average req/reply latency: {:?}", start.elapsed() / 500);
+    tracing::info!("Average req/reply latency: {:?}", start.elapsed() / 500);
 }

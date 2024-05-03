@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["json", "macros"]
+default = ["json", "macros", "tracing"]
 json = ["dep:serde_json"]
 tracing = ["dep:tracing"]
 macros = ["dep:hydra-macros"]
