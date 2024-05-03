@@ -97,6 +97,6 @@ async fn main() {
     tracing::info!("Average req/reply latency: {:?}", start.elapsed() / 500);
 
     loop {
-        let _ = Process::receiver().ignore_type().receive::<()>().await;
+        let _ = Process::receive::<()>().await;
     }
 }

@@ -1,4 +1,5 @@
 mod alias;
+mod application;
 mod argument_error;
 mod call_error;
 mod catch_unwind;
@@ -38,6 +39,7 @@ mod supervisor;
 mod system_message;
 mod timeout;
 
+pub use application::*;
 pub use argument_error::*;
 pub use call_error::*;
 pub use child_spec::*;

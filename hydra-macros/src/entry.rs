@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 
+use quote::format_ident;
 use quote::quote;
 
 use syn::parse_macro_input;
@@ -10,23 +11,25 @@ pub(crate) fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as ItemFn);
     let input_name = &input_fn.sig.ident;
     let input_block = &input_fn.block;
+    let input_struct = format_ident!("{}_MainStruct", input_name);
 
     let output = quote! {
-        #[allow(unreachable_code)]
-        fn #input_name() {
-            let rt = ::tokio::runtime::Runtime::new().unwrap();
+        #[allow(non_camel_case_types)]
+        struct #input_struct;
 
-            rt.block_on(async {
-                let (tx, rx) = ::tokio::sync::oneshot::channel();
-
-                ::hydra::Process::spawn(async {
+        impl ::hydra::Application for #input_struct {
+            async fn start(&self) -> Result<::hydra::Pid, ::hydra::ExitReason> {
+                Ok(Process::spawn_link(async move {
                     #input_block
+                }))
+            }
+        }
 
-                    tx.send(()).unwrap();
-                });
+        fn #input_name() {
+            use ::hydra::Application;
 
-                rx.await.unwrap();
-            });
+            let main = #input_struct;
+            main.run();
         }
     };
 
@@ -37,27 +40,26 @@ pub(crate) fn test(_: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as ItemFn);
     let input_name = &input_fn.sig.ident;
     let input_block = &input_fn.block;
+    let input_struct = format_ident!("{}_TestStruct", input_name);
 
     let output = quote! {
-        #[allow(unreachable_code)]
+        #[allow(non_camel_case_types)]
+        struct #input_struct;
+
+        impl ::hydra::Application for #input_struct {
+            async fn start(&self) -> Result<::hydra::Pid, ::hydra::ExitReason> {
+                Ok(Process::spawn_link(async move {
+                    #input_block
+                }))
+            }
+        }
+
         #[test]
         fn #input_name() {
-            let rt = ::tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
+            use ::hydra::Application;
 
-            rt.block_on(async {
-                let (tx, rx) = ::tokio::sync::oneshot::channel();
-
-                ::hydra::Process::spawn(async {
-                    #input_block
-
-                    tx.send(()).unwrap();
-                });
-
-                rx.await.unwrap();
-            });
+            let test = #input_struct;
+            test.test();
         }
     };
 

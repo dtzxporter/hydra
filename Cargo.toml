@@ -19,6 +19,7 @@ tokio = { version = "1.0", default-features = false, features = ["rt", "rt-multi
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-panic = "0.1"
 
 hydra-macros = { path = "./hydra-macros" }
 
