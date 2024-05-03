@@ -28,6 +28,4 @@ async fn main() {
 
         println!("Got message: {:?}", message);
     }
-
-    Process::sleep(Duration::from_secs(1000)).await;
 }

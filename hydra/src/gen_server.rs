@@ -133,6 +133,13 @@ pub trait GenServer: Sized + Send + 'static {
         Process::send(server, GenServerMessage::Cast(message));
     }
 
+    /// Casts a request to the `server` after the given `duration` without waiting for a response.
+    ///
+    /// It is unknown whether the destination server successfully handled the request.
+    fn cast_after<T: Into<Dest>>(server: T, message: Self::Message, duration: Duration) {
+        Process::send_after(server, GenServerMessage::Cast(message), duration);
+    }
+
     /// Makes a synchronous call to the `server` and waits for it's reply.
     ///
     /// The client sends the given `message` to the server and waits until a reply
