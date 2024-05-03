@@ -135,23 +135,20 @@ impl Supervisor {
     async fn start_children(&mut self) -> Result<(), ExitReason> {
         let mut remove: Vec<usize> = Vec::new();
 
-        for (index, child) in self.children.iter_mut().enumerate() {
-            let start_child = Pin::from(child.spec.start.as_ref().unwrap()()).await;
-
-            match start_child {
+        for index in 0..self.children.len() {
+            match self.start_child(index).await {
                 Ok(pid) => {
-                    child.pid = Some(pid);
+                    let child = &mut self.children[index];
+
+                    child.pid = pid;
+
+                    if child.is_temporary() && pid.is_none() {
+                        remove.push(index);
+                    }
                 }
                 Err(reason) => {
-                    if reason.is_ignore() {
-                        if child.is_temporary() {
-                            remove.push(index);
-                        }
-                        continue;
-                    }
-
                     #[cfg(feature = "tracing")]
-                    tracing::error!(reason = ?reason, child_id = ?child.spec.id, "Start error.");
+                    tracing::error!(reason = ?reason, child_id = ?self.children[index].spec.id, "Start error.");
 
                     return Err(ExitReason::from("failed_to_start_child"));
                 }
@@ -301,9 +298,17 @@ impl Supervisor {
         let start_child = Pin::from(child.spec.start.as_ref().unwrap()()).await;
 
         match start_child {
-            Ok(pid) => Ok(Some(pid)),
+            Ok(pid) => {
+                #[cfg(feature = "tracing")]
+                tracing::info!(child_id = ?child.spec.id, child_pid = ?pid, "Started child.");
+
+                Ok(Some(pid))
+            }
             Err(reason) => {
                 if reason.is_ignore() {
+                    #[cfg(feature = "tracing")]
+                    tracing::info!(child_id = ?child.spec.id, child_pid = ?None::<Pid>, "Started child.");
+
                     Ok(None)
                 } else {
                     Err(reason)
