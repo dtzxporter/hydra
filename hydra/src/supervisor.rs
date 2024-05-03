@@ -389,6 +389,17 @@ impl GenServer for Supervisor {
         self.init_children().await
     }
 
+    async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
+        match message {
+            SupervisorMessage::TryAgainRestartPid(pid) => {
+                //
+            }
+            _ => unreachable!(),
+        }
+
+        Ok(())
+    }
+
     async fn handle_info(&mut self, info: Message<Self::Message>) -> Result<(), ExitReason> {
         match info {
             Message::System(SystemMessage::Exit(pid, reason)) => {
