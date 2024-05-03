@@ -163,7 +163,7 @@ impl Supervisor {
     }
 
     /// Terminates all of the children.
-    async fn terminate_children(&mut self) -> Result<(), ExitReason> {
+    async fn terminate_children(&mut self) {
         let mut remove: Vec<usize> = Vec::new();
 
         for (index, child) in self.children.iter_mut().enumerate().rev() {
@@ -187,14 +187,12 @@ impl Supervisor {
         for index in remove {
             self.remove_child(index);
         }
-
-        Ok(())
     }
 
     /// Checks all of the children for correct specification and then starts them.
     async fn init_children(&mut self) -> Result<(), ExitReason> {
         if let Err(reason) = self.start_children().await {
-            let _ = self.terminate_children().await;
+            self.terminate_children().await;
 
             return Err(reason);
         }
