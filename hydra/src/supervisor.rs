@@ -50,6 +50,7 @@ pub enum SupervisionStrategy {
 /// Supervision trees provide fault-tolerance and encapsulate how our applications start and shutdown.
 pub struct Supervisor {
     children: Vec<SupervisedChild>,
+    identifiers: BTreeSet<String>,
     restarts: Vec<Instant>,
     strategy: SupervisionStrategy,
     auto_shutdown: AutoShutdown,
@@ -62,6 +63,7 @@ impl Supervisor {
     pub const fn new() -> Self {
         Self {
             children: Vec::new(),
+            identifiers: BTreeSet::new(),
             restarts: Vec::new(),
             strategy: SupervisionStrategy::OneForOne,
             auto_shutdown: AutoShutdown::Never,
@@ -72,22 +74,28 @@ impl Supervisor {
 
     /// Constructs a new instance of [Supervisor] with the given children.
     pub fn with_children<T: IntoIterator<Item = ChildSpec>>(children: T) -> Self {
-        Self {
-            children: Vec::from_iter(
-                children
-                    .into_iter()
-                    .map(|spec| SupervisedChild { spec, pid: None }),
-            ),
-            ..Self::new()
+        let mut result = Self::new();
+
+        for child in children {
+            result = result.add_child(child);
         }
+
+        result
     }
 
     /// Adds a child to this [Supervisor].
     pub fn add_child(mut self, child: ChildSpec) -> Self {
+        if self.identifiers.contains(&child.id) {
+            panic!("Child id was not unique!");
+        }
+
+        self.identifiers.insert(child.id.clone());
+
         self.children.push(SupervisedChild {
             spec: child,
             pid: None,
         });
+
         self
     }
 
@@ -148,7 +156,7 @@ impl Supervisor {
         }
 
         for index in remove.into_iter().rev() {
-            self.children.remove(index);
+            self.remove_child(index);
         }
 
         Ok(())
@@ -173,7 +181,7 @@ impl Supervisor {
         }
 
         for index in remove {
-            self.children.remove(index);
+            self.remove_child(index);
         }
 
         Ok(())
@@ -181,8 +189,6 @@ impl Supervisor {
 
     /// Checks all of the children for correct specification and then starts them.
     async fn init_children(&mut self) -> Result<(), ExitReason> {
-        self.check_child_specs();
-
         if let Err(reason) = self.start_children().await {
             let _ = self.terminate_children().await;
 
@@ -213,7 +219,9 @@ impl Supervisor {
 
         // If it's not permanent, check if it's a normal reason.
         if reason.is_normal() || reason == "shutdown" {
-            if self.check_auto_shutdown(index) {
+            let child = self.remove_child(index);
+
+            if self.check_auto_shutdown(child) {
                 return Err(ExitReason::from("shutdown"));
             } else {
                 return Ok(());
@@ -233,9 +241,9 @@ impl Supervisor {
 
         // Not transient, check if temporary and clean up.
         if child.is_temporary() {
-            self.children.remove(index);
+            let child = self.remove_child(index);
 
-            if self.check_auto_shutdown(index) {
+            if self.check_auto_shutdown(child) {
                 return Err(ExitReason::from("shutdown"));
             }
         }
@@ -288,12 +296,10 @@ impl Supervisor {
     }
 
     /// Checks whether or not we should automatically shutdown the supervisor. Returns `true` if so.
-    fn check_auto_shutdown(&mut self, index: usize) -> bool {
+    fn check_auto_shutdown(&mut self, child: SupervisedChild) -> bool {
         if matches!(self.auto_shutdown, AutoShutdown::Never) {
             return false;
         }
-
-        let child = &mut self.children[index];
 
         if !child.spec.significant {
             return false;
@@ -327,15 +333,13 @@ impl Supervisor {
         false
     }
 
-    /// Checks to make sure all of the child specifications have unique ids.
-    fn check_child_specs(&mut self) {
-        let mut ids: BTreeSet<&str> = BTreeSet::new();
+    /// Removes a child from the supervisor.
+    fn remove_child(&mut self, index: usize) -> SupervisedChild {
+        let child = self.children.remove(index);
 
-        for child in &self.children {
-            if !ids.insert(&child.spec.id) {
-                panic!("Found non-unique child spec id: {:?}!", child.spec.id);
-            }
-        }
+        self.identifiers.remove(&child.spec.id);
+
+        child
     }
 
     /// Finds a child by the given `pid`.
