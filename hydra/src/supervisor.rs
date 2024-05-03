@@ -150,6 +150,9 @@ impl Supervisor {
                         continue;
                     }
 
+                    #[cfg(feature = "tracing")]
+                    tracing::error!(reason = ?reason, child_id = ?child.spec.id, "Start error.");
+
                     return Err(ExitReason::from("failed_to_start_child"));
                 }
             }
@@ -176,7 +179,11 @@ impl Supervisor {
             };
 
             if let Err(reason) = shutdown(pid, child.shutdown()).await {
-                println!("Report error: {:?}", reason);
+                #[cfg(feature = "tracing")]
+                tracing::error!(reason = ?reason, child_pid = ?pid, "Shutdown error.");
+
+                #[cfg(not(feature = "tracing"))]
+                let _ = reason;
             }
         }
 
@@ -208,6 +215,9 @@ impl Supervisor {
 
         // Permanent children are always restarted.
         if child.is_permanent() {
+            #[cfg(feature = "tracing")]
+            tracing::error!(reason = ?reason, child_id = ?child.spec.id, child_pid = ?child.pid, "Child terminated.");
+
             if self.add_restart() {
                 return Err(ExitReason::from("shutdown"));
             }
@@ -230,6 +240,9 @@ impl Supervisor {
 
         // Not a normal reason, check if transient.
         if child.is_transient() {
+            #[cfg(feature = "tracing")]
+            tracing::error!(reason = ?reason, child_id = ?child.spec.id, child_pid = ?child.pid, "Child terminated.");
+
             if self.add_restart() {
                 return Err(ExitReason::from("shutdown"));
             }
@@ -241,6 +254,9 @@ impl Supervisor {
 
         // Not transient, check if temporary and clean up.
         if child.is_temporary() {
+            #[cfg(feature = "tracing")]
+            tracing::error!(reason = ?reason, child_id = ?child.spec.id, child_pid = ?child.pid, "Child terminated.");
+
             let child = self.remove_child(index);
 
             if self.check_auto_shutdown(child) {
@@ -262,7 +278,8 @@ impl Supervisor {
                     Err(reason) => {
                         let id = self.children[index].id();
 
-                        println!("Eventually report this reason: {:?}", reason);
+                        #[cfg(feature = "tracing")]
+                        tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error.");
 
                         Supervisor::cast(
                             Process::current(),
@@ -327,6 +344,9 @@ impl Supervisor {
         self.restarts.push(now);
 
         if self.restarts.len() > self.max_restarts {
+            #[cfg(feature = "tracing")]
+            tracing::error!(restarts = ?self.restarts, "Reached max restart intensity.");
+
             return true;
         }
 

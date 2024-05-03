@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = ["json", "macros"]
 json = ["dep:serde_json"]
+tracing = ["dep:tracing"]
 macros = ["dep:hydra-macros"]
 
 [dependencies]
@@ -27,3 +28,4 @@ pin-project-lite.workspace = true
 hydra-macros = { workspace = true, optional = true }
 
 serde_json = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
