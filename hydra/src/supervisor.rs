@@ -477,9 +477,21 @@ impl Supervisor {
         self.identifiers.insert(spec.id.clone());
         self.children.push(SupervisedChild { spec, pid: None });
 
-        self.start_child_by_index(self.children.len() - 1)
-            .await
-            .map_err(SupervisorError::StartError)
+        match self.start_child_by_index(self.children.len() - 1).await {
+            Ok(pid) => {
+                let index = self.children.len() - 1;
+                let child = &mut self.children[index];
+
+                child.pid = pid;
+
+                if child.is_temporary() && pid.is_none() {
+                    self.children.remove(index);
+                }
+
+                Ok(pid)
+            }
+            Err(reason) => Err(SupervisorError::StartError(reason)),
+        }
     }
 
     /// Checks whether or not we should automatically shutdown the supervisor. Returns `true` if so.
