@@ -7,9 +7,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::AutoShutdown;
+use crate::CallError;
 use crate::ChildSpec;
 use crate::ChildType;
+use crate::Dest;
 use crate::ExitReason;
+use crate::From;
 use crate::GenServer;
 use crate::GenServerOptions;
 use crate::Message;
@@ -32,6 +35,21 @@ struct SupervisedChild {
 pub enum SupervisorMessage {
     TryAgainRestartPid(Pid),
     TryAgainRestartId(String),
+    CountChildrenRequest,
+    CountChildrenResponse(SupervisorCounts),
+}
+
+/// Contains the counts of all of the supervised children.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SupervisorCounts {
+    /// The total count of children, dead or alive.
+    pub specs: usize,
+    /// The count of all actively running child processes managed by this supervisor.
+    pub active: usize,
+    /// The count of all children marked as `supervisor` dead or alive.
+    pub supervisors: usize,
+    /// The count of all children marked as `worker` dead or alive.
+    pub workers: usize,
 }
 
 /// The supervision strategy to use for each child.
@@ -127,8 +145,21 @@ impl Supervisor {
         self
     }
 
+    /// Creates a supervisor process as part of a supervision tree.
+    ///
+    /// For example, this function ensures that the supervisor is linked to the calling process (its supervisor).
+    ///
+    /// This will not return until all of the child processes have been started.
     pub async fn start_link(self, options: GenServerOptions) -> Result<Pid, ExitReason> {
         GenServer::start_link(self, (), options).await
+    }
+
+    /// Returns [SupervisorCounts] containing the counts for each of the different child specifications.
+    pub async fn count_children<T: Into<Dest>>(server: T) -> Result<SupervisorCounts, CallError> {
+        match Supervisor::call(server, SupervisorMessage::CountChildrenRequest, None).await? {
+            SupervisorMessage::CountChildrenResponse(counts) => Ok(counts),
+            _ => unreachable!(),
+        }
     }
 
     /// Starts all of the children.
@@ -432,6 +463,32 @@ impl Supervisor {
         false
     }
 
+    /// Counts all of the supervised children.
+    fn count_all_children(&mut self) -> SupervisorCounts {
+        let mut counts = SupervisorCounts {
+            specs: 0,
+            active: 0,
+            supervisors: 0,
+            workers: 0,
+        };
+
+        for child in &self.children {
+            counts.specs += 1;
+
+            if child.pid.is_some() {
+                counts.active += 1;
+            }
+
+            if matches!(child.spec.child_type, ChildType::Supervisor) {
+                counts.supervisors += 1;
+            } else {
+                counts.workers += 1;
+            }
+        }
+
+        counts
+    }
+
     /// Removes a child from the supervisor.
     fn remove_child(&mut self, index: usize) -> SupervisedChild {
         let child = self.children.remove(index);
@@ -509,9 +566,25 @@ impl GenServer for Supervisor {
                     return self.try_again_restart(index).await;
                 }
             }
+            _ => unreachable!(),
         }
 
         Ok(())
+    }
+
+    async fn handle_call(
+        &mut self,
+        message: Self::Message,
+        _from: From,
+    ) -> Result<Option<Self::Message>, ExitReason> {
+        match message {
+            SupervisorMessage::CountChildrenRequest => {
+                let counts = self.count_all_children();
+
+                Ok(Some(SupervisorMessage::CountChildrenResponse(counts)))
+            }
+            _ => unreachable!(),
+        }
     }
 
     async fn handle_info(&mut self, info: Message<Self::Message>) -> Result<(), ExitReason> {
