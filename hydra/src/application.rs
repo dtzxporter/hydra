@@ -64,7 +64,7 @@ pub trait Application: Sized + Send + 'static {
                 match self.start().await {
                     Ok(pid) => {
                         #[cfg(feature = "tracing")]
-                        tracing::info!(supervisor = ?pid, "Application supervisor has started.");
+                        tracing::info!(supervisor = ?pid, "Application supervisor has started");
 
                         loop {
                             let message = Process::receive::<()>().await;
@@ -74,10 +74,10 @@ pub trait Application: Sized + Send + 'static {
                                     if epid == pid {
                                         if ereason.is_custom() && ereason != "shutdown" {
                                             #[cfg(feature = "tracing")]
-                                            tracing::error!(reason = ?ereason, supervisor = ?epid, "Application supervisor has terminated.");
+                                            tracing::error!(reason = ?ereason, supervisor = ?epid, "Application supervisor has terminated");
                                         } else {
                                             #[cfg(feature = "tracing")]
-                                            tracing::info!(reason = ?ereason, supervisor = ?epid, "Application supervisor has exited.");
+                                            tracing::info!(reason = ?ereason, supervisor = ?epid, "Application supervisor has exited");
                                         }
                                         break;
                                     }
@@ -88,7 +88,7 @@ pub trait Application: Sized + Send + 'static {
                     }
                     Err(reason) => {
                         #[cfg(feature = "tracing")]
-                        tracing::error!(reason = ?reason, "Application supervisor failed to start.");
+                        tracing::error!(reason = ?reason, "Application supervisor failed to start");
 
                         #[cfg(not(feature = "tracing"))]
                         let _ = reason;
