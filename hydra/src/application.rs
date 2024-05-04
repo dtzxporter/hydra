@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::sync::Once;
 
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
@@ -16,6 +17,11 @@ use crate::SystemMessage;
 /// [Application] provides graceful shutdown by allowing you to link a process inside the call to `start`.
 /// The `run` call will only return once that process has terminated. It's recommended to link a supervisor.
 pub trait Application: Sized + Send + 'static {
+    /// Whether or not tracing will subscribe when you call `run`.
+    ///
+    /// This will install a global tracing subscriber with recommended settings for you.
+    #[cfg(feature = "tracing")]
+    const TRACING_SUBSCRIBE: bool = false;
     /// Whether or not tracing will be used to catch panics globally.
     ///
     /// This will install a global panic hook that will log panics using `tracing`.
@@ -31,6 +37,14 @@ pub trait Application: Sized + Send + 'static {
     ///
     /// This method will return when the linked process created in `start` has exited.
     fn run(self) {
+        if Self::TRACING_SUBSCRIBE {
+            static TRACING_SUBSCRIBE_ONCE: Once = Once::new();
+
+            TRACING_SUBSCRIBE_ONCE.call_once(|| {
+                tracing_subscriber::fmt::init();
+            });
+        }
+
         let mut prev_hook: Option<_> = None;
 
         if Self::TRACING_PANICS {

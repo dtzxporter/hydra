@@ -66,7 +66,6 @@ pub use supervisor::*;
 pub use system_message::*;
 pub use timeout::*;
 
-#[cfg(not(test))]
 pub use hydra_macros::main;
 pub use hydra_macros::test;
 

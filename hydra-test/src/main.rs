@@ -63,8 +63,6 @@ impl GenServer for MyServer {
 
 #[hydra::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
-
     let server = MyServer;
     let server = server
         .start((), GenServerOptions::new())
