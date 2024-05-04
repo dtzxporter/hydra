@@ -146,13 +146,14 @@ pub trait GenServer: Sized + Send + 'static {
     /// arrives or a timeout occurs. `handle_call` will be called on the server to handle the request.
     ///
     /// The default timeout is 5000ms.
-    fn call<T: Into<Dest> + Send>(
+    fn call<T: Into<Dest>>(
         server: T,
         message: Self::Message,
         timeout: Option<Duration>,
     ) -> impl Future<Output = Result<Self::Message, CallError>> + Send {
+        let server = server.into();
+
         async move {
-            let server = server.into();
             let monitor = Process::monitor(server.clone());
 
             // TODO: Determine if we want to use an alias here?
