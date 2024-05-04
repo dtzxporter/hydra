@@ -42,6 +42,9 @@ pub enum SupervisorMessage {
     StartChild(Local<ChildSpec>),
     StartChildSuccess(Option<Pid>),
     StartChildError(SupervisorError),
+    TerminateChild(String),
+    TerminateChildSuccess,
+    TerminateChildError(SupervisorError),
 }
 
 /// Errors for [Supervisor] calls.
@@ -55,6 +58,8 @@ pub enum SupervisorError {
     AlreadyPresent,
     /// The child failed to start.
     StartError(ExitReason),
+    /// The child was not found.
+    NotFound,
 }
 
 /// Contains the counts of all of the supervised children.
@@ -198,6 +203,26 @@ impl Supervisor {
         }
     }
 
+    /// Terminates the given child identified by `child_id`.
+    ///
+    /// The process is terminated, if there's one. The child specification is kept unless the child is temporary.
+    ///
+    /// A non-temporary child process may later be restarted by the [Supervisor].
+    ///
+    /// The child process can also be restarted explicitly by calling `restart_child`. Use `delete_child` to remove the child specification.
+    pub async fn terminate_child<T: Into<Dest>, I: Into<String>>(
+        server: T,
+        child_id: I,
+    ) -> Result<(), SupervisorError> {
+        let message = SupervisorMessage::TerminateChild(child_id.into());
+
+        match Supervisor::call(server, message, None).await? {
+            SupervisorMessage::TerminateChildSuccess => Ok(()),
+            SupervisorMessage::TerminateChildError(error) => Err(error),
+            _ => unreachable!(),
+        }
+    }
+
     /// Starts all of the children.
     async fn start_children(&mut self) -> Result<(), ExitReason> {
         let mut remove: Vec<usize> = Vec::new();
@@ -229,6 +254,21 @@ impl Supervisor {
         Ok(())
     }
 
+    /// Terminates a child by the id if it exists.
+    async fn terminate_child_by_id(&mut self, child_id: String) -> Result<(), SupervisorError> {
+        let index = self
+            .children
+            .iter()
+            .position(|child| child.spec.id == child_id);
+
+        if let Some(index) = index {
+            self.terminate_child_by_index(index).await;
+            Ok(())
+        } else {
+            Err(SupervisorError::NotFound)
+        }
+    }
+
     /// Terminates all of the children.
     async fn terminate_children(&mut self) {
         let mut remove: Vec<usize> = Vec::new();
@@ -257,7 +297,7 @@ impl Supervisor {
     }
 
     /// Terminates a single child.
-    async fn terminate_child(&mut self, index: usize) {
+    async fn terminate_child_by_index(&mut self, index: usize) {
         let child = &mut self.children[index];
 
         let Some(pid) = child.pid.take() else {
@@ -405,7 +445,7 @@ impl Supervisor {
                 continue;
             }
 
-            self.terminate_child(tindex).await;
+            self.terminate_child_by_index(tindex).await;
         }
 
         for sindex in indices {
@@ -659,6 +699,12 @@ impl GenServer for Supervisor {
                 match self.start_new_child(spec.into_inner()).await {
                     Ok(pid) => Ok(Some(SupervisorMessage::StartChildSuccess(pid))),
                     Err(error) => Ok(Some(SupervisorMessage::StartChildError(error))),
+                }
+            }
+            SupervisorMessage::TerminateChild(child_id) => {
+                match self.terminate_child_by_id(child_id).await {
+                    Ok(()) => Ok(Some(SupervisorMessage::TerminateChildSuccess)),
+                    Err(error) => Ok(Some(SupervisorMessage::TerminateChildError(error))),
                 }
             }
             _ => unreachable!(),
