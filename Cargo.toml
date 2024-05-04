@@ -27,7 +27,6 @@ hydra-macros = { path = "./hydra-macros" }
 [profile.release]
 lto = "fat"
 strip = true
-panic = "abort"
 codegen-units = 1
 
 [patch.crates-io]
