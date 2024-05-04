@@ -15,6 +15,7 @@ use crate::ExitReason;
 use crate::From;
 use crate::GenServer;
 use crate::GenServerOptions;
+use crate::Local;
 use crate::Message;
 use crate::Pid;
 use crate::Process;
@@ -32,12 +33,28 @@ struct SupervisedChild {
 
 /// A supervisor message.
 #[doc(hidden)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub enum SupervisorMessage {
     TryAgainRestartPid(Pid),
     TryAgainRestartId(String),
-    CountChildrenRequest,
-    CountChildrenResponse(SupervisorCounts),
+    CountChildren,
+    CountChildrenSuccess(SupervisorCounts),
+    StartChild(Local<ChildSpec>),
+    StartChildSuccess(Option<Pid>),
+    StartChildError(SupervisorError),
+}
+
+/// Errors for [Supervisor] calls.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SupervisorError {
+    /// A call to the [Supervisor] server has failed.
+    CallError(CallError),
+    /// The child already exists and is running.
+    AlreadyStarted,
+    /// The child already exists.
+    AlreadyPresent,
+    /// The child failed to start.
+    StartError(ExitReason),
 }
 
 /// Contains the counts of all of the supervised children.
@@ -156,9 +173,27 @@ impl Supervisor {
     }
 
     /// Returns [SupervisorCounts] containing the counts for each of the different child specifications.
-    pub async fn count_children<T: Into<Dest>>(server: T) -> Result<SupervisorCounts, CallError> {
-        match Supervisor::call(server, SupervisorMessage::CountChildrenRequest, None).await? {
-            SupervisorMessage::CountChildrenResponse(counts) => Ok(counts),
+    pub async fn count_children<T: Into<Dest>>(
+        server: T,
+    ) -> Result<SupervisorCounts, SupervisorError> {
+        let message = SupervisorMessage::CountChildren;
+
+        match Supervisor::call(server, message, None).await? {
+            SupervisorMessage::CountChildrenSuccess(counts) => Ok(counts),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Adds the child specification to the [Supervisor] and starts that child.
+    pub async fn start_child<T: Into<Dest>>(
+        server: T,
+        child: ChildSpec,
+    ) -> Result<Option<Pid>, SupervisorError> {
+        let message = SupervisorMessage::StartChild(Local::new(child));
+
+        match Supervisor::call(server, message, None).await? {
+            SupervisorMessage::StartChildSuccess(pid) => Ok(pid),
+            SupervisorMessage::StartChildError(error) => Err(error),
             _ => unreachable!(),
         }
     }
@@ -168,7 +203,7 @@ impl Supervisor {
         let mut remove: Vec<usize> = Vec::new();
 
         for index in 0..self.children.len() {
-            match self.start_child(index).await {
+            match self.start_child_by_index(index).await {
                 Ok(pid) => {
                     let child = &mut self.children[index];
 
@@ -309,7 +344,7 @@ impl Supervisor {
     async fn restart(&mut self, index: usize) {
         match self.strategy {
             SupervisionStrategy::OneForOne => {
-                match self.start_child(index).await {
+                match self.start_child_by_index(index).await {
                     Ok(pid) => {
                         self.children[index].pid = pid;
                     }
@@ -374,7 +409,7 @@ impl Supervisor {
         }
 
         for sindex in indices {
-            match self.start_child(sindex).await {
+            match self.start_child_by_index(sindex).await {
                 Ok(pid) => {
                     self.children[sindex].pid = pid;
                 }
@@ -399,7 +434,7 @@ impl Supervisor {
     }
 
     /// Starts the given child by it's index and returns what the result was.
-    async fn start_child(&mut self, index: usize) -> Result<Option<Pid>, ExitReason> {
+    async fn start_child_by_index(&mut self, index: usize) -> Result<Option<Pid>, ExitReason> {
         let child = &mut self.children[index];
         let start_child = Pin::from(child.spec.start.as_ref().unwrap()()).await;
 
@@ -421,6 +456,30 @@ impl Supervisor {
                 }
             }
         }
+    }
+
+    /// Adds the new child spec to the children if it's unique and starts it.
+    async fn start_new_child(&mut self, spec: ChildSpec) -> Result<Option<Pid>, SupervisorError> {
+        if self.identifiers.contains(&spec.id) {
+            let child = self
+                .children
+                .iter()
+                .find(|child| child.spec.id == spec.id)
+                .unwrap();
+
+            if child.pid.is_some() {
+                return Err(SupervisorError::AlreadyStarted);
+            } else {
+                return Err(SupervisorError::AlreadyPresent);
+            }
+        }
+
+        self.identifiers.insert(spec.id.clone());
+        self.children.push(SupervisedChild { spec, pid: None });
+
+        self.start_child_by_index(self.children.len() - 1)
+            .await
+            .map_err(SupervisorError::StartError)
     }
 
     /// Checks whether or not we should automatically shutdown the supervisor. Returns `true` if so.
@@ -579,10 +638,16 @@ impl GenServer for Supervisor {
         _from: From,
     ) -> Result<Option<Self::Message>, ExitReason> {
         match message {
-            SupervisorMessage::CountChildrenRequest => {
+            SupervisorMessage::CountChildren => {
                 let counts = self.count_all_children();
 
-                Ok(Some(SupervisorMessage::CountChildrenResponse(counts)))
+                Ok(Some(SupervisorMessage::CountChildrenSuccess(counts)))
+            }
+            SupervisorMessage::StartChild(spec) => {
+                match self.start_new_child(spec.into_inner()).await {
+                    Ok(pid) => Ok(Some(SupervisorMessage::StartChildSuccess(pid))),
+                    Err(error) => Ok(Some(SupervisorMessage::StartChildError(error))),
+                }
             }
             _ => unreachable!(),
         }
@@ -595,6 +660,12 @@ impl GenServer for Supervisor {
             }
             _ => Ok(()),
         }
+    }
+}
+
+impl std::convert::From<CallError> for SupervisorError {
+    fn from(value: CallError) -> Self {
+        Self::CallError(value)
     }
 }
 
