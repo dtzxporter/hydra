@@ -31,6 +31,7 @@ struct SupervisedChild {
 }
 
 /// A supervisor message.
+#[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SupervisorMessage {
     TryAgainRestartPid(Pid),
