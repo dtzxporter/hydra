@@ -189,6 +189,17 @@ impl Supervisor {
         }
     }
 
+    /// Terminates a single child.
+    async fn terminate_child(&mut self, index: usize) {
+        let child = &mut self.children[index];
+
+        let Some(pid) = child.pid.take() else {
+            return;
+        };
+
+        let _ = shutdown(pid, child.shutdown()).await;
+    }
+
     /// Checks all of the children for correct specification and then starts them.
     async fn init_children(&mut self) -> Result<(), ExitReason> {
         if let Err(reason) = self.start_children().await {
@@ -284,10 +295,75 @@ impl Supervisor {
                 };
             }
             SupervisionStrategy::RestForOne => {
-                //
+                if let Some((index, reason)) = self.restart_multiple_children(index, false).await {
+                    let id = self.children[index].id();
+
+                    #[cfg(feature = "tracing")]
+                    tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error.");
+
+                    Supervisor::cast(Process::current(), SupervisorMessage::TryAgainRestartId(id));
+                }
             }
-            _ => unimplemented!(),
+            SupervisionStrategy::OneForAll => {
+                if let Some((index, reason)) = self.restart_multiple_children(index, true).await {
+                    let id = self.children[index].id();
+
+                    #[cfg(feature = "tracing")]
+                    tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error.");
+
+                    Supervisor::cast(Process::current(), SupervisorMessage::TryAgainRestartId(id));
+                }
+            }
         }
+    }
+
+    /// Restarts multiple children, returning if one of them fails.
+    async fn restart_multiple_children(
+        &mut self,
+        index: usize,
+        all: bool,
+    ) -> Option<(usize, ExitReason)> {
+        let mut indices = Vec::new();
+
+        let range = if all {
+            0..self.children.len()
+        } else {
+            index..self.children.len()
+        };
+
+        for tindex in range {
+            indices.push(tindex);
+
+            if index == tindex {
+                continue;
+            }
+
+            self.terminate_child(tindex).await;
+        }
+
+        for sindex in indices {
+            match self.start_child(sindex).await {
+                Ok(pid) => {
+                    self.children[sindex].pid = pid;
+                }
+                Err(reason) => {
+                    return Some((sindex, reason));
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Tries to restart the given child again, returns if an error occured.
+    async fn try_again_restart(&mut self, index: usize) -> Result<(), ExitReason> {
+        if self.add_restart() {
+            return Err(ExitReason::from("shutdown"));
+        }
+
+        self.restart(index).await;
+
+        Ok(())
     }
 
     /// Starts the given child by it's index and returns what the result was.
@@ -371,6 +447,11 @@ impl Supervisor {
             .iter()
             .position(|child| child.pid.is_some_and(|cpid| cpid == pid))
     }
+
+    /// Finds a child by the given `id`.
+    fn find_child_id(&mut self, id: &str) -> Option<usize> {
+        self.children.iter().position(|child| child.spec.id == id)
+    }
 }
 
 impl SupervisedChild {
@@ -419,9 +500,15 @@ impl GenServer for Supervisor {
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
         match message {
             SupervisorMessage::TryAgainRestartPid(pid) => {
-                //
+                if let Some(index) = self.find_child(pid) {
+                    return self.try_again_restart(index).await;
+                }
             }
-            _ => unreachable!(),
+            SupervisorMessage::TryAgainRestartId(id) => {
+                if let Some(index) = self.find_child_id(&id) {
+                    return self.try_again_restart(index).await;
+                }
+            }
         }
 
         Ok(())
