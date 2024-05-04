@@ -29,6 +29,7 @@ use crate::SystemMessage;
 struct SupervisedChild {
     spec: ChildSpec,
     pid: Option<Pid>,
+    restarting: bool,
 }
 
 /// A supervisor message.
@@ -45,6 +46,9 @@ pub enum SupervisorMessage {
     TerminateChild(String),
     TerminateChildSuccess,
     TerminateChildError(SupervisorError),
+    RestartChild(String),
+    RestartChildSuccess(Option<Pid>),
+    RestartChildError(SupervisorError),
 }
 
 /// Errors for [Supervisor] calls.
@@ -60,6 +64,10 @@ pub enum SupervisorError {
     StartError(ExitReason),
     /// The child was not found.
     NotFound,
+    /// The child is already running.
+    Running,
+    /// The child is being restarted.
+    Restarting,
 }
 
 /// Contains the counts of all of the supervised children.
@@ -135,6 +143,7 @@ impl Supervisor {
         self.children.push(SupervisedChild {
             spec: child,
             pid: None,
+            restarting: false,
         });
 
         self
@@ -223,6 +232,25 @@ impl Supervisor {
         }
     }
 
+    /// Restarts a child identified by `child_id`.
+    ///
+    /// The child specification must exist and the corresponding child process must not be running.
+    ///
+    /// Note that for temporary children, the child specification is automatically deleted when the child terminates,
+    /// and thus it is not possible to restart such children.
+    pub async fn restart_child<T: Into<Dest>, I: Into<String>>(
+        server: T,
+        child_id: I,
+    ) -> Result<Option<Pid>, SupervisorError> {
+        let message = SupervisorMessage::RestartChild(child_id.into());
+
+        match Supervisor::call(server, message, None).await? {
+            SupervisorMessage::RestartChildSuccess(pid) => Ok(pid),
+            SupervisorMessage::RestartChildError(error) => Err(error),
+            _ => unreachable!(),
+        }
+    }
+
     /// Starts all of the children.
     async fn start_children(&mut self) -> Result<(), ExitReason> {
         let mut remove: Vec<usize> = Vec::new();
@@ -233,6 +261,7 @@ impl Supervisor {
                     let child = &mut self.children[index];
 
                     child.pid = pid;
+                    child.restarting = false;
 
                     if child.is_temporary() && pid.is_none() {
                         remove.push(index);
@@ -266,6 +295,41 @@ impl Supervisor {
             Ok(())
         } else {
             Err(SupervisorError::NotFound)
+        }
+    }
+
+    /// Restarts a child by the id if it's not already started or pending.
+    async fn restart_child_by_id(
+        &mut self,
+        child_id: String,
+    ) -> Result<Option<Pid>, SupervisorError> {
+        let index = self
+            .children
+            .iter()
+            .position(|child| child.spec.id == child_id);
+
+        let Some(index) = index else {
+            return Err(SupervisorError::NotFound);
+        };
+
+        let child = &mut self.children[index];
+
+        if child.restarting {
+            return Err(SupervisorError::Restarting);
+        } else if child.pid.is_some() {
+            return Err(SupervisorError::Running);
+        }
+
+        match self.start_child_by_index(index).await {
+            Ok(pid) => {
+                let child = &mut self.children[index];
+
+                child.pid = pid;
+                child.restarting = false;
+
+                Ok(pid)
+            }
+            Err(reason) => Err(SupervisorError::StartError(reason)),
         }
     }
 
@@ -319,7 +383,11 @@ impl Supervisor {
     }
 
     /// Restarts a child that exited for the given `reason`.
-    async fn restart_child(&mut self, pid: Pid, reason: ExitReason) -> Result<(), ExitReason> {
+    async fn restart_exited_child(
+        &mut self,
+        pid: Pid,
+        reason: ExitReason,
+    ) -> Result<(), ExitReason> {
         let Some(index) = self.find_child(pid) else {
             return Ok(());
         };
@@ -386,13 +454,18 @@ impl Supervisor {
             SupervisionStrategy::OneForOne => {
                 match self.start_child_by_index(index).await {
                     Ok(pid) => {
-                        self.children[index].pid = pid;
+                        let child = &mut self.children[index];
+
+                        child.pid = pid;
+                        child.restarting = false;
                     }
                     Err(reason) => {
                         let id = self.children[index].id();
 
                         #[cfg(feature = "tracing")]
                         tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error");
+
+                        self.children[index].restarting = true;
 
                         Supervisor::cast(
                             Process::current(),
@@ -408,6 +481,8 @@ impl Supervisor {
                     #[cfg(feature = "tracing")]
                     tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error");
 
+                    self.children[index].restarting = true;
+
                     Supervisor::cast(Process::current(), SupervisorMessage::TryAgainRestartId(id));
                 }
             }
@@ -417,6 +492,8 @@ impl Supervisor {
 
                     #[cfg(feature = "tracing")]
                     tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error");
+
+                    self.children[index].restarting = true;
 
                     Supervisor::cast(Process::current(), SupervisorMessage::TryAgainRestartId(id));
                 }
@@ -451,7 +528,10 @@ impl Supervisor {
         for sindex in indices {
             match self.start_child_by_index(sindex).await {
                 Ok(pid) => {
-                    self.children[sindex].pid = pid;
+                    let child = &mut self.children[sindex];
+
+                    child.pid = pid;
+                    child.restarting = false;
                 }
                 Err(reason) => {
                     return Some((sindex, reason));
@@ -515,7 +595,11 @@ impl Supervisor {
         }
 
         self.identifiers.insert(spec.id.clone());
-        self.children.push(SupervisedChild { spec, pid: None });
+        self.children.push(SupervisedChild {
+            spec,
+            pid: None,
+            restarting: false,
+        });
 
         match self.start_child_by_index(self.children.len() - 1).await {
             Ok(pid) => {
@@ -523,6 +607,7 @@ impl Supervisor {
                 let child = &mut self.children[index];
 
                 child.pid = pid;
+                child.restarting = false;
 
                 if child.is_temporary() && pid.is_none() {
                     self.children.remove(index);
@@ -707,6 +792,12 @@ impl GenServer for Supervisor {
                     Err(error) => Ok(Some(SupervisorMessage::TerminateChildError(error))),
                 }
             }
+            SupervisorMessage::RestartChild(child_id) => {
+                match self.restart_child_by_id(child_id).await {
+                    Ok(pid) => Ok(Some(SupervisorMessage::RestartChildSuccess(pid))),
+                    Err(error) => Ok(Some(SupervisorMessage::RestartChildError(error))),
+                }
+            }
             _ => unreachable!(),
         }
     }
@@ -714,7 +805,7 @@ impl GenServer for Supervisor {
     async fn handle_info(&mut self, info: Message<Self::Message>) -> Result<(), ExitReason> {
         match info {
             Message::System(SystemMessage::Exit(pid, reason)) => {
-                self.restart_child(pid, reason).await
+                self.restart_exited_child(pid, reason).await
             }
             _ => Ok(()),
         }
