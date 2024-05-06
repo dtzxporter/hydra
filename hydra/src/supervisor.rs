@@ -49,6 +49,9 @@ pub enum SupervisorMessage {
     RestartChild(String),
     RestartChildSuccess(Option<Pid>),
     RestartChildError(SupervisorError),
+    DeleteChild(String),
+    DeleteChildSuccess,
+    DeleteChildError(SupervisorError),
 }
 
 /// Errors for [Supervisor] calls.
@@ -251,6 +254,22 @@ impl Supervisor {
         }
     }
 
+    /// Deletes the child specification identified by `child_id`.
+    ///
+    /// The corrosponding child process must not be running, use `terminate_child` to terminate it if it's running.
+    pub async fn delete_child<T: Into<Dest>, I: Into<String>>(
+        server: T,
+        child_id: I,
+    ) -> Result<(), SupervisorError> {
+        let message = SupervisorMessage::DeleteChild(child_id.into());
+
+        match Supervisor::call(server, message, None).await? {
+            SupervisorMessage::DeleteChildSuccess => Ok(()),
+            SupervisorMessage::DeleteChildError(error) => Err(error),
+            _ => unreachable!(),
+        }
+    }
+
     /// Starts all of the children.
     async fn start_children(&mut self) -> Result<(), ExitReason> {
         let mut remove: Vec<usize> = Vec::new();
@@ -279,6 +298,32 @@ impl Supervisor {
         for index in remove.into_iter().rev() {
             self.remove_child(index);
         }
+
+        Ok(())
+    }
+
+    /// Deletes a child by the id if it exists.
+    async fn delete_child_by_id(&mut self, child_id: String) -> Result<(), SupervisorError> {
+        let index = self
+            .children
+            .iter()
+            .position(|child| child.spec.id == child_id);
+
+        let Some(index) = index else {
+            return Err(SupervisorError::NotFound);
+        };
+
+        let child = &self.children[index];
+
+        if child.restarting {
+            return Err(SupervisorError::Restarting);
+        } else if child.pid.is_some() {
+            return Err(SupervisorError::Running);
+        }
+
+        let child = self.children.remove(index);
+
+        self.identifiers.remove(&child.spec.id);
 
         Ok(())
     }
@@ -367,6 +412,8 @@ impl Supervisor {
         let Some(pid) = child.pid.take() else {
             return;
         };
+
+        child.restarting = false;
 
         let _ = shutdown(pid, child.shutdown()).await;
     }
@@ -546,6 +593,10 @@ impl Supervisor {
     async fn try_again_restart(&mut self, index: usize) -> Result<(), ExitReason> {
         if self.add_restart() {
             return Err(ExitReason::from("shutdown"));
+        }
+
+        if !self.children[index].restarting {
+            return Ok(());
         }
 
         self.restart(index).await;
@@ -796,6 +847,12 @@ impl GenServer for Supervisor {
                 match self.restart_child_by_id(child_id).await {
                     Ok(pid) => Ok(Some(SupervisorMessage::RestartChildSuccess(pid))),
                     Err(error) => Ok(Some(SupervisorMessage::RestartChildError(error))),
+                }
+            }
+            SupervisorMessage::DeleteChild(child_id) => {
+                match self.delete_child_by_id(child_id).await {
+                    Ok(()) => Ok(Some(SupervisorMessage::DeleteChildSuccess)),
+                    Err(error) => Ok(Some(SupervisorMessage::DeleteChildError(error))),
                 }
             }
             _ => unreachable!(),
