@@ -1,11 +1,15 @@
 use std::future::Future;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::ExitReason;
 use crate::Pid;
 use crate::Restart;
 use crate::Shutdown;
 
 /// The type of child process.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum ChildType {
     /// The child is a worker process.
     Worker,

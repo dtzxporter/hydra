@@ -52,6 +52,8 @@ pub enum SupervisorMessage {
     DeleteChild(String),
     DeleteChildSuccess,
     DeleteChildError(SupervisorError),
+    WhichChildren,
+    WhichChildrenSuccess(Vec<SupervisorChildInfo>),
 }
 
 /// Errors for [Supervisor] calls.
@@ -71,6 +73,19 @@ pub enum SupervisorError {
     Running,
     /// The child is being restarted.
     Restarting,
+}
+
+/// Information about a child of a [Supervisor].
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SupervisorChildInfo {
+    /// The id as defined in the child specification.
+    id: String,
+    /// The [Pid] of the corrosponding child process if it exists.
+    child: Option<Pid>,
+    /// The type of child as defined in the child specification.
+    child_type: ChildType,
+    /// Whether or not the process is about to be restarted.
+    restarting: bool,
 }
 
 /// Contains the counts of all of the supervised children.
@@ -266,6 +281,18 @@ impl Supervisor {
         match Supervisor::call(server, message, None).await? {
             SupervisorMessage::DeleteChildSuccess => Ok(()),
             SupervisorMessage::DeleteChildError(error) => Err(error),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Returns a list with information about all children of the given [Supervisor].
+    pub async fn which_children<T: Into<Dest>>(
+        server: T,
+    ) -> Result<Vec<SupervisorChildInfo>, SupervisorError> {
+        let message = SupervisorMessage::WhichChildren;
+
+        match Supervisor::call(server, message, None).await? {
+            SupervisorMessage::WhichChildrenSuccess(info) => Ok(info),
             _ => unreachable!(),
         }
     }
@@ -711,6 +738,22 @@ impl Supervisor {
         false
     }
 
+    /// Gets information on all of the children.
+    fn which_children_info(&mut self) -> Vec<SupervisorChildInfo> {
+        let mut result = Vec::with_capacity(self.children.len());
+
+        for child in &self.children {
+            result.push(SupervisorChildInfo {
+                id: child.spec.id.clone(),
+                child: child.pid,
+                child_type: child.spec.child_type,
+                restarting: child.restarting,
+            });
+        }
+
+        result
+    }
+
     /// Counts all of the supervised children.
     fn count_all_children(&mut self) -> SupervisorCounts {
         let mut counts = SupervisorCounts {
@@ -854,6 +897,11 @@ impl GenServer for Supervisor {
                     Ok(()) => Ok(Some(SupervisorMessage::DeleteChildSuccess)),
                     Err(error) => Ok(Some(SupervisorMessage::DeleteChildError(error))),
                 }
+            }
+            SupervisorMessage::WhichChildren => {
+                let children = self.which_children_info();
+
+                Ok(Some(SupervisorMessage::WhichChildrenSuccess(children)))
             }
             _ => unreachable!(),
         }
