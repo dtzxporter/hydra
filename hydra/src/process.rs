@@ -406,6 +406,28 @@ impl Process {
         reference
     }
 
+    /// Starts monitoring the given process from the calling process. If the process is already dead a message is sent immediately.
+    ///
+    /// Creates an alias for the calling process that's tied to the process monitor.
+    ///
+    /// The alias will be deactivated if:
+    /// - The monitor sends a down message.
+    /// - The user explicitly calls `unalias`. (The monitor will remain active)
+    /// - `reply` is `true` and a message is sent over the alias.
+    pub fn monitor_alias<T: Into<Dest>>(process: T, reply: bool) -> Reference {
+        let current = Self::current();
+        let process = process.into();
+        let sender = PROCESS.with(|process| process.sender.clone());
+
+        let reference = Reference::new();
+
+        alias_create(sender, reference, reply);
+
+        monitor_install(process, reference, current);
+
+        reference
+    }
+
     /// Demonitors the monitor identified by the given reference.
     ///
     /// If a monitor message was sent to the process already but was not received, it will be discarded automatically.
@@ -425,6 +447,8 @@ impl Process {
         };
 
         monitor_destroy(pid, monitor);
+
+        alias_destroy(monitor);
     }
 
     /// Returns the current process flags.

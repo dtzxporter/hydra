@@ -7,6 +7,7 @@ use once_cell::sync::Lazy;
 use crate::frame::Monitor;
 use crate::frame::MonitorDown;
 
+use crate::alias_destroy;
 use crate::node_lookup_remote;
 use crate::node_monitor_destroy;
 use crate::node_process_monitor_create;
@@ -81,6 +82,10 @@ pub fn monitor_destroy_all<'a, M: IntoIterator<Item = (&'a Reference, &'a Proces
                 node_monitor_destroy(node.clone(), *reference);
             }
         }
+
+        if reference.is_local() {
+            alias_destroy(*reference);
+        }
     }
 }
 
@@ -99,6 +104,8 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                 ))
                 .unwrap()
         });
+
+        alias_destroy(reference);
     };
 
     match process {
@@ -232,6 +239,10 @@ pub fn monitor_process_down(from: Pid, exit_reason: ExitReason) {
 
             remote.0.monitors.push(reference.id());
             remote.1.push(reference);
+        }
+
+        if reference.is_local() {
+            alias_destroy(reference);
         }
     }
 

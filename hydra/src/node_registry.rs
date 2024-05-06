@@ -12,6 +12,7 @@ use once_cell::sync::Lazy;
 
 use crate::frame::Frame;
 
+use crate::alias_destroy;
 use crate::link_destroy;
 use crate::monitor_destroy;
 use crate::node_local_supervisor;
@@ -336,6 +337,10 @@ pub fn node_remote_supervisor_down(node: Node, process: Pid) {
                         monitor_destroy(Pid::local(id), reference);
                     }
                 }
+
+                if reference.is_local() {
+                    alias_destroy(reference);
+                }
             }
         }
 
@@ -515,6 +520,8 @@ pub fn node_process_monitor_down(node: Node, reference: Reference, exit_reason: 
 
         value
     });
+
+    alias_destroy(reference);
 
     if let Some(NodeMonitor::ProcessMonitor(id, dest)) = monitor {
         PROCESS_REGISTRY

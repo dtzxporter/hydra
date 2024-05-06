@@ -24,7 +24,7 @@ enum GenServerMessage<T: Send + 'static> {
     #[serde(rename = "$gen_cast")]
     Cast(T),
     #[serde(rename = "$gen_call")]
-    Call(Pid, Reference, T),
+    Call(From, T),
     #[serde(rename = "$gen_reply")]
     CallReply(Reference, T),
     #[serde(rename = "$gen_stop")]
@@ -154,15 +154,15 @@ pub trait GenServer: Sized + Send + 'static {
         let server = server.into();
 
         async move {
-            let monitor = Process::monitor(server.clone());
+            let monitor = if server.is_local() {
+                Process::monitor(server.clone())
+            } else {
+                Process::monitor_alias(server.clone(), true)
+            };
 
-            // TODO: Determine if we want to use an alias here?
-            // Use alias if the process is remote to prevent reply after down.
+            let from = From::new(Process::current(), monitor, server.is_remote());
 
-            Process::send(
-                server,
-                GenServerMessage::Call(Process::current(), monitor, message),
-            );
+            Process::send(server, GenServerMessage::Call(from, message));
 
             let receiver = Process::receiver()
                 .ignore_type()
@@ -225,7 +225,11 @@ pub trait GenServer: Sized + Send + 'static {
     /// Note that `reply` can be called from any process, not just the [GenServer] that originally received the call
     /// (as long as the GenServer communicated the `from` argument somehow).
     fn reply(from: From, message: Self::Message) {
-        Process::send(from.pid(), GenServerMessage::CallReply(from.tag(), message));
+        if from.is_alias() {
+            Process::send(from.tag(), GenServerMessage::CallReply(from.tag(), message));
+        } else {
+            Process::send(from.pid(), GenServerMessage::CallReply(from.tag(), message));
+        }
     }
 
     /// Invoked when the server is about to exit. It should do any cleanup required.
@@ -343,9 +347,7 @@ async fn start_gen_server<T: GenServer>(
                         return Process::exit(Process::current(), reason);
                     }
                 }
-                Message::User(GenServerMessage::Call(pid, tag, message)) => {
-                    let from = From::new(pid, tag);
-
+                Message::User(GenServerMessage::Call(from, message)) => {
                     match gen_server.handle_call(message, from).await {
                         Ok(Some(message)) => {
                             T::reply(from, message);
