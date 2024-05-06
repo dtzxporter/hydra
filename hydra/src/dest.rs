@@ -18,6 +18,26 @@ pub enum Dest {
     Alias(Reference),
 }
 
+impl Dest {
+    /// Returns `true` if the [Dest] is for a local process.
+    pub const fn is_local(&self) -> bool {
+        match self {
+            Self::Pid(pid) => pid.is_local(),
+            Self::Named(_, node) => node.is_local(),
+            Self::Alias(reference) => reference.is_local(),
+        }
+    }
+
+    /// Returns `true` if the [Dest] is for a remote process.
+    pub const fn is_remote(&self) -> bool {
+        match self {
+            Self::Pid(pid) => pid.is_remote(),
+            Self::Named(_, node) => node.is_remote(),
+            Self::Alias(reference) => reference.is_remote(),
+        }
+    }
+}
+
 impl From<Pid> for Dest {
     fn from(value: Pid) -> Self {
         Self::Pid(value)

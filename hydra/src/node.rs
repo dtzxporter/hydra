@@ -49,6 +49,11 @@ impl Node {
         matches!(self, Node::Local)
     }
 
+    /// Returns `true` if the node is a remote node.
+    pub const fn is_remote(&self) -> bool {
+        matches!(self, Node::Remote(_, _))
+    }
+
     /// Returns the current node.
     pub fn current() -> Node {
         Node::Local

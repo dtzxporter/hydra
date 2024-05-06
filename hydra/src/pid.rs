@@ -37,8 +37,13 @@ impl Pid {
         Self::Remote(NonZeroU64::new(id).unwrap(), node)
     }
 
-    /// Returns true if this [Pid] is a remote process.
-    pub(crate) const fn is_remote(&self) -> bool {
+    /// Returns `true` if this [Pid] is a local process.
+    pub const fn is_local(&self) -> bool {
+        matches!(self, Self::Local(_))
+    }
+
+    /// Returns `true` if this [Pid] is a remote process.
+    pub const fn is_remote(&self) -> bool {
         matches!(self, Self::Remote(_, _))
     }
 
@@ -56,11 +61,6 @@ impl Pid {
             Self::Local(_) => LOCAL_NODE_ID,
             Self::Remote(_, node) => *node,
         }
-    }
-
-    /// Returns true if this [Pid] is a local process.
-    pub const fn is_local(&self) -> bool {
-        matches!(self, Self::Local(_))
     }
 }
 

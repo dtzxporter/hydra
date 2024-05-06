@@ -47,9 +47,14 @@ impl Reference {
         Self::Remote(NonZeroU64::new(id).unwrap(), node)
     }
 
-    /// Returns true if this [Reference] is a local process.
-    pub(crate) const fn is_local(&self) -> bool {
+    /// Returns `true` if this [Reference] is a local process.
+    pub const fn is_local(&self) -> bool {
         matches!(self, Self::Local(_))
+    }
+
+    /// Returns `true` if this [Reference] is a remote process.
+    pub const fn is_remote(&self) -> bool {
+        matches!(self, Self::Remote(_, _))
     }
 
     /// Gets the id part of this [Reference].
