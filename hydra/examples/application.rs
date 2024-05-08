@@ -1,7 +1,9 @@
+use hydra::Application;
 use hydra::ExitReason;
 use hydra::From;
 use hydra::GenServer;
 use hydra::GenServerOptions;
+use hydra::Pid;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -52,24 +54,38 @@ impl GenServer for Stack {
     }
 }
 
-#[hydra::main]
-async fn main() {
-    let pid = Stack::with_entries(vec!["hello", "world"])
-        .start_link(GenServerOptions::new())
-        .await
-        .expect("Failed to start stack!");
+struct StackApplication;
 
-    let result = Stack::call(pid, StackMessage::Pop, None)
-        .await
-        .expect("Stack call failed!");
+impl Application for StackApplication {
+    // Here, we must link a process for the application to monitor, usually, a Supervisor, but it can be any process.
+    async fn start(&self) -> Result<Pid, ExitReason> {
+        let pid = Stack::with_entries(vec!["hello", "world"])
+            .start_link(GenServerOptions::new())
+            .await
+            .expect("Failed to start stack!");
 
-    tracing::info!("{:?}", result);
+        let result = Stack::call(pid, StackMessage::Pop, None)
+            .await
+            .expect("Stack call failed!");
 
-    Stack::cast(pid, StackMessage::Push(String::from("rust")));
+        tracing::info!("{:?}", result);
 
-    let result = Stack::call(pid, StackMessage::Pop, None)
-        .await
-        .expect("Stack call failed!");
+        Stack::cast(pid, StackMessage::Push(String::from("rust")));
 
-    tracing::info!("{:?}", result);
+        let result = Stack::call(pid, StackMessage::Pop, None)
+            .await
+            .expect("Stack call failed!");
+
+        tracing::info!("{:?}", result);
+
+        // Otherwise, the application will run forever waiting for Stack to terminate.
+        Stack::stop(pid, ExitReason::Normal, None).await?;
+
+        Ok(pid)
+    }
+}
+
+fn main() {
+    // This method will return once the linked Process in StackApplication::start has terminated.
+    Application::run(StackApplication)
 }

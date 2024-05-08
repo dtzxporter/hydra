@@ -59,19 +59,17 @@ enum GenServerMessage<T: Send + 'static> {
 /// }
 ///
 /// impl Stack {
-///     pub fn new() -> Self {
+///     pub fn with_entries(entries: Vec<&'static str>) -> Self {
 ///         Self {
-///             stack: Vec::new(),
+///             stack: Vec::from_iter(entries.into_iter().map(Into::into)),
 ///         }
 ///     }
 /// }
 ///
 /// impl GenServer for Stack {
-///     type InitArg = Vec<String>;
 ///     type Message = StackMessage;
 ///
-///     async fn init(&mut self, init_arg: Self::InitArg) -> Result<(), ExitReason> {
-///         self.stack = init_arg;
+///     async fn init(&mut self) -> Result<(), ExitReason> {
 ///         Ok(())
 ///     }
 ///
@@ -96,8 +94,8 @@ enum GenServerMessage<T: Send + 'static> {
 /// We can now use the GenServer methods to interact with the service by creating a process and sending it messages:
 /// ```no_run
 /// // Start the server.
-/// let pid = Stack::new()
-///             .start_link(vec![String::from("hello"), String::from("world")], GenServerOptions::new())
+/// let pid = Stack::with_entries(vec![String::from("hello"), String::from("world")])
+///             .start_link(GenServerOptions::new())
 ///             .await
 ///             .expect("Failed to start stack!");
 ///
@@ -115,38 +113,31 @@ enum GenServerMessage<T: Send + 'static> {
 /// // => StackMessage::PopResult("rust")
 /// ```
 pub trait GenServer: Sized + Send + 'static {
-    /// The type of the init argument that this server will use.
-    type InitArg: Send;
     /// The message type that this server will use.
     type Message: Receivable;
 
     /// Invoked when the server is started. `start_link` or `start` will block until it returns.
-    fn init(
-        &mut self,
-        init_arg: Self::InitArg,
-    ) -> impl Future<Output = Result<(), ExitReason>> + Send;
+    fn init(&mut self) -> impl Future<Output = Result<(), ExitReason>> + Send;
 
     /// Starts a [GenServer] process without links.
     fn start(
         self,
-        init_arg: Self::InitArg,
         options: GenServerOptions,
     ) -> impl Future<Output = Result<Pid, ExitReason>> + Send {
-        async { start_gen_server(self, init_arg, options, false).await }
+        async { start_gen_server(self, options, false).await }
     }
 
     /// Starts a [GenServer] process linked to the current process.
     fn start_link(
         self,
-        init_arg: Self::InitArg,
+
         options: GenServerOptions,
     ) -> impl Future<Output = Result<Pid, ExitReason>> + Send {
-        async { start_gen_server(self, init_arg, options, true).await }
+        async { start_gen_server(self, options, true).await }
     }
 
     /// Builds a child specification for this [GenServer] process.
-    fn child_spec(init_arg: Self::InitArg) -> ChildSpec {
-        let _ = init_arg;
+    fn child_spec() -> ChildSpec {
         unimplemented!("User must implement child_spec")
     }
 
@@ -371,7 +362,6 @@ pub trait GenServer: Sized + Send + 'static {
 /// Internal [GenServer] start routine.
 async fn start_gen_server<T: GenServer>(
     gen_server: T,
-    init_arg: T::InitArg,
     options: GenServerOptions,
     link: bool,
 ) -> Result<Pid, ExitReason> {
@@ -394,9 +384,9 @@ async fn start_gen_server<T: GenServer>(
         }
 
         let timeout = if let Some(duration) = options.timeout.take() {
-            Process::timeout(duration, gen_server.init(init_arg)).await
+            Process::timeout(duration, gen_server.init()).await
         } else {
-            Ok(gen_server.init(init_arg).await)
+            Ok(gen_server.init().await)
         };
 
         match timeout {

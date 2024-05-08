@@ -29,8 +29,8 @@ impl Application for MyApplication {
     async fn start(&self) -> Result<Pid, ExitReason> {
         // Spawn two instances of `MyServer` with their own unique ids.
         let children = [
-            MyServer::child_spec(()).id("server1"),
-            MyServer::child_spec(()).id("server2"),
+            MyServer::child_spec().id("server1"),
+            MyServer::child_spec().id("server2"),
         ];
 
         // Restart only the terminated child.
@@ -54,10 +54,9 @@ impl MyServer {
 }
 
 impl GenServer for MyServer {
-    type InitArg = ();
     type Message = MyMessage;
 
-    async fn init(&mut self, _init_arg: Self::InitArg) -> Result<(), ExitReason> {
+    async fn init(&mut self) -> Result<(), ExitReason> {
         let server = Process::current();
 
         Process::spawn(async move {
@@ -78,9 +77,9 @@ impl GenServer for MyServer {
         Ok(())
     }
 
-    fn child_spec(init_arg: Self::InitArg) -> ChildSpec {
+    fn child_spec() -> ChildSpec {
         ChildSpec::new("MyServer")
-            .start(move || MyServer::start_link(MyServer, init_arg, GenServerOptions::new()))
+            .start(move || MyServer::start_link(MyServer, GenServerOptions::new()))
     }
 
     async fn handle_call(
