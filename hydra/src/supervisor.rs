@@ -167,6 +167,15 @@ impl Supervisor {
         self
     }
 
+    /// Builds a child specification for this [Supervisor] process.
+    pub fn child_spec(children: Vec<ChildSpec>) -> ChildSpec {
+        ChildSpec::new("Supervisor")
+            .start(move || {
+                Supervisor::with_children(children.clone()).start_link(GenServerOptions::new())
+            })
+            .child_type(ChildType::Supervisor)
+    }
+
     /// Sets the supervision strategy for the [Supervisor].
     pub const fn strategy(mut self, strategy: SupervisionStrategy) -> Self {
         self.strategy = strategy;
@@ -842,12 +851,6 @@ impl GenServer for Supervisor {
         Process::set_flags(ProcessFlags::TRAP_EXIT);
 
         self.init_children().await
-    }
-
-    fn child_spec() -> ChildSpec {
-        ChildSpec::new("Supervisor")
-            .start(move || Supervisor::new().start_link(GenServerOptions::new()))
-            .child_type(ChildType::Supervisor)
     }
 
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
