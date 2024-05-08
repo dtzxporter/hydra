@@ -42,6 +42,78 @@ enum GenServerMessage<T: Send + 'static> {
 /// for tracing and error reporting.
 ///
 /// It will also fit into a supervision tree.
+///
+/// ## Example
+/// Let's start with a code example and then explore the available callbacks. Imagine we want to implement a service with a GenServer that works like a stack, allowing us to push and pop elements. We'll customize a generic GenServer with our own module by implementing three callbacks.
+///
+/// ```no_run
+/// #[derive(Debug, Serialize, Deserialize)]
+/// enum StackMessage {
+///     Pop,
+///     PopResult(String),
+///     Push(String),
+/// }
+///
+/// struct Stack {
+///     stack: Vec<String>,
+/// }
+///
+/// impl Stack {
+///     pub fn new() -> Self {
+///         Self {
+///             stack: Vec::new(),
+///         }
+///     }
+/// }
+///
+/// impl GenServer for Stack {
+///     type InitArg = Vec<String>;
+///     type Message = StackMessage;
+///
+///     async fn init(&mut self, init_arg: Self::InitArg) -> Result<(), ExitReason> {
+///         self.stack = init_arg;
+///         Ok(())
+///     }
+///
+///     async fn handle_call(&mut self, message: Self::Message, _from: From) -> Result<Option<Self::Message>, ExitReason> {
+///         match message {
+///             StackMessage::Pop => Ok(Some(StackMessage::PopResult(self.stack.remove(0)))),
+///             _ => unreachable!(),
+///         }
+///     }
+///
+///     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
+///         match message {
+///             StackMessage::Push(value) => self.stack.insert(0, value),
+///             _ => unreachable!(),
+///         }
+///         Ok(())
+///     }
+/// }
+/// ```
+///
+/// We leave the process machinery of startup, message passing, and the message loop to the GenServer.
+/// We can now use the GenServer methods to interact with the service by creating a process and sending it messages:
+/// ```no_run
+/// // Start the server.
+/// let pid = Stack::new()
+///             .start_link(vec!["hello", "world"], GenServerOptions::new())
+///             .await
+///             .expect("Failed to start stack!");
+///
+/// // This is the client.
+/// Stack::call(pid, StackMessage::Pop)
+///         .await
+///         .expect("Stack call failed!");
+/// // => StackMessage::PopResult("hello")
+///
+/// Stack::cast(pid, StackMessage::Push(String::from("rust")))
+///
+/// Stack::call(pid, StackMessage::Pop)
+///         .await
+///         .expect("Stack call failed!");
+/// // => StackMessage::PopResult("rust")
+/// ```
 pub trait GenServer: Sized + Send + 'static {
     /// The type of the init argument that this server will use.
     type InitArg: Send;
