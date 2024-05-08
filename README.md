@@ -56,6 +56,7 @@ use hydra::ExitReason;
 use hydra::From;
 use hydra::GenServer;
 use hydra::GenServerOptions;
+use hydra::Pid;
 use hydra::Process;
 use hydra::SupervisionStrategy;
 use hydra::Supervisor;
@@ -70,7 +71,7 @@ enum MyMessage {
 struct MyApplication;
 
 impl Application for MyApplication {
-    async fn start(&self) -> Result<hydra::Pid, ExitReason> {
+    async fn start(&self) -> Result<Pid, ExitReason> {
         // Spawn two instances of `MyServer` with their own unique ids.
         let children = [
             MyServer::child_spec(()).id("server1"),
