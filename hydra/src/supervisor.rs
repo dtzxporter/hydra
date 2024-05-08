@@ -201,7 +201,7 @@ impl Supervisor {
     ///
     /// This will not return until all of the child processes have been started.
     pub async fn start_link(self, options: GenServerOptions) -> Result<Pid, ExitReason> {
-        GenServer::start_link(self, (), options).await
+        GenServer::start_link(self, Vec::new(), options).await
     }
 
     /// Returns [SupervisorCounts] containing the counts for each of the different child specifications.
@@ -836,13 +836,21 @@ impl SupervisedChild {
 }
 
 impl GenServer for Supervisor {
-    type InitArg = ();
+    type InitArg = Vec<ChildSpec>;
     type Message = SupervisorMessage;
 
     async fn init(&mut self, _: Self::InitArg) -> Result<(), ExitReason> {
         Process::set_flags(ProcessFlags::TRAP_EXIT);
 
         self.init_children().await
+    }
+
+    fn child_spec(init_arg: Self::InitArg) -> ChildSpec {
+        ChildSpec::new("Supervisor")
+            .start(move || {
+                Supervisor::with_children(init_arg.clone()).start_link(GenServerOptions::new())
+            })
+            .child_type(ChildType::Supervisor)
     }
 
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {

@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::sync::Arc;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -18,11 +19,12 @@ pub enum ChildType {
 }
 
 /// The child specification describes how the supervisor starts, shuts down, and restarts child processes.
+#[derive(Clone)]
 pub struct ChildSpec {
     pub(crate) id: String,
     #[allow(clippy::type_complexity)]
     pub(crate) start: Option<
-        Box<
+        Arc<
             dyn Fn() -> Box<dyn Future<Output = Result<Pid, ExitReason>> + Send + Sync>
                 + Send
                 + Sync,
@@ -61,7 +63,7 @@ impl ChildSpec {
         T: Fn() -> F + Send + Sync + 'static,
         F: Future<Output = Result<Pid, ExitReason>> + Send + Sync + 'static,
     {
-        self.start = Some(Box::new(move || Box::new(start())));
+        self.start = Some(Arc::new(move || Box::new(start())));
         self
     }
 
