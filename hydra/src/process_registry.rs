@@ -210,7 +210,7 @@ pub fn process_set_exit_reason(pid: Pid, exit_reason: ExitReason) {
     PROCESS_REGISTRY.alter(&pid.id(), |_, mut process| {
         process.exit_reason = Some(exit_reason);
         process
-    })
+    });
 }
 
 /// Returns a list of processes.
