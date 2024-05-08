@@ -8,10 +8,13 @@ A framework for writing fault tolerant, highly scalable applications with the Ru
 - **Distributed**: Hydra provides built-in support for running a fully distributed cluster of processes over a network of any size.
 
 [![Crates.io][crates-badge]][crates-url]
+[![Docs.rs][docs-badge]][docs-url]
 [![MIT licensed][mit-badge]][mit-url]
 
 [crates-badge]: https://img.shields.io/crates/v/hydra.svg
 [crates-url]: https://crates.io/crates/hydra
+[docs-badge]: https://img.shields.io/docsrs/hydra/latest
+[docs-url]: https://docs.rs/hydra
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/dtzxporter/hydra/blob/main/LICENSE
 
