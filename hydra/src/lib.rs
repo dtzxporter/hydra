@@ -37,6 +37,7 @@ mod serialize;
 mod shutdown;
 mod supervisor;
 mod system_message;
+mod task;
 mod timeout;
 
 pub use application::*;
@@ -64,6 +65,7 @@ pub use restart::*;
 pub use shutdown::*;
 pub use supervisor::*;
 pub use system_message::*;
+pub use task::*;
 pub use timeout::*;
 
 pub use hydra_macros::main;
