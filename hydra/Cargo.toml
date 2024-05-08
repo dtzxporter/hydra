@@ -6,7 +6,7 @@ edition = "2021"
 [features]
 default = ["json", "macros", "tracing"]
 json = ["dep:serde_json"]
-tracing = ["hydra-macros/tracing", "dep:tracing", "dep:tracing-panic", "dep:tracing-subscriber"]
+tracing = ["dep:tracing", "dep:tracing-panic", "dep:tracing-subscriber"]
 macros = ["dep:hydra-macros"]
 
 [dependencies]
