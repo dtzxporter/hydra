@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use std::time::Instant;
 
 use hydra::Message;
 use hydra::Pid;
@@ -37,7 +38,7 @@ async fn main() {
         });
     }
 
-    let start = std::time::Instant::now();
+    let start = Instant::now();
 
     loop {
         Process::sleep(Duration::from_secs(1)).await;
@@ -47,6 +48,6 @@ async fn main() {
 
         let ops = count / elapsed.as_secs().max(1);
 
-        println!("Msg/s: {}", ops);
+        tracing::info!("Msg/s: {}", ops);
     }
 }
