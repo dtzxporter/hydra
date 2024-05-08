@@ -158,9 +158,19 @@ fn main() {
 }
 ```
 
+## Related Projects
+The following projects are related to, or in use in Hydra such that it would be wise to learn them as well:
+
+* [`tokio`]: A runtime for writing reliable, asynchronous, and slim applications with the Rust programming language.
+* [`serde`]: A framework for serializing and deserializing Rust data structures efficiently and generically.
+* [`tracing`]: A framework for application-level tracing and async-aware diagnostics.
+
+[`tokio`]: https://github.com/tokio-rs/tokio
+[`serde`]: https://github.com/serde-rs/serde
+[`tracing`]: https://github.com/tokio-rs/tracing
+
 ## Changelog
 [View Changelog](https://github.com/dtzxporter/hydra/blob/main/CHANGELOG.md)
-
 
 ## License
 This project is licensed under the [MIT license](https://github.com/dtzxporter/hydra/blob/main/LICENSE)
