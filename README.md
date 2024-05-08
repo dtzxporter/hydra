@@ -46,7 +46,7 @@ async fn main() {
 ```
 
 ## Changelog
-[View Changelog](https://github.com/dtzxporter/hydra/blob/main)
+[View Changelog](https://github.com/dtzxporter/hydra/blob/main/CHANGELOG.md)
 
 
 ## License
