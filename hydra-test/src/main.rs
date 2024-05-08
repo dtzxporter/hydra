@@ -1,7 +1,6 @@
 use std::time::Duration;
 use std::time::Instant;
 
-use hydra::Process;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -11,6 +10,7 @@ use hydra::From;
 use hydra::GenServer;
 use hydra::GenServerOptions;
 use hydra::Local;
+use hydra::Process;
 use hydra::SupervisionStrategy;
 use hydra::Supervisor;
 

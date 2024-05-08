@@ -6,5 +6,4 @@ edition = "2021"
 [dependencies]
 hydra = { path = "../hydra", features = ["json"] }
 
-tokio.workspace = true
 serde.workspace = true

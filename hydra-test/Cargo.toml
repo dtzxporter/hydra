@@ -7,5 +7,4 @@ edition = "2021"
 hydra = { path = "../hydra", features = ["json", "tracing"] }
 tracing = "0.1"
 
-tokio.workspace = true
 serde.workspace = true
