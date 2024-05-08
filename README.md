@@ -70,11 +70,6 @@ enum MyMessage {
 struct MyApplication;
 
 impl Application for MyApplication {
-    // Enable tracing panic messages.
-    const TRACING_PANICS: bool = true;
-    // Enable tracing subscriber with recommended settings.
-    const TRACING_SUBSCRIBE: bool = true;
-
     async fn start(&self) -> Result<hydra::Pid, ExitReason> {
         // Spawn two instances of `MyServer` with their own unique ids.
         let children = [

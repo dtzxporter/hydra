@@ -21,12 +21,12 @@ pub trait Application: Sized + Send + 'static {
     ///
     /// This will install a global tracing subscriber with recommended settings for you.
     #[cfg(feature = "tracing")]
-    const TRACING_SUBSCRIBE: bool = false;
+    const TRACING_SUBSCRIBE: bool = true;
     /// Whether or not tracing will be used to catch panics globally.
     ///
     /// This will install a global panic hook that will log panics using `tracing`.
     #[cfg(feature = "tracing")]
-    const TRACING_PANICS: bool = false;
+    const TRACING_PANICS: bool = true;
 
     /// Called when an application is starting. You should link a process here and return it's [Pid].
     ///
