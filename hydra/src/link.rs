@@ -14,10 +14,11 @@ use crate::node_process_link_destroy;
 use crate::node_process_link_destroy_all;
 use crate::node_register;
 use crate::node_send_frame;
+use crate::process_exists_lock;
+use crate::process_exit_signal_linked;
 use crate::ExitReason;
 use crate::Node;
 use crate::Pid;
-use crate::PROCESS_REGISTRY;
 
 /// A collection of local processes linked to another process.
 static LINKS: Lazy<DashMap<u64, BTreeSet<Pid>>> = Lazy::new(DashMap::new);
@@ -29,18 +30,14 @@ pub fn link_create(process: Pid, from: Pid, ignore_errors: bool) -> bool {
         return true;
     }
 
-    if PROCESS_REGISTRY
-        .read()
-        .unwrap()
-        .processes
-        .get(&process.id())
-        .is_some()
-    {
-        LINKS.entry(process.id()).or_default().insert(from);
-        true
-    } else {
-        false
-    }
+    process_exists_lock(process, |exists| {
+        if exists {
+            LINKS.entry(process.id()).or_default().insert(from);
+            true
+        } else {
+            false
+        }
+    })
 }
 
 /// Installs a link for the given process.
@@ -51,10 +48,7 @@ pub fn link_install(process: Pid, from: Pid) {
 
     if process.is_local() {
         if !link_create(process, from, false) {
-            PROCESS_REGISTRY
-                .write()
-                .unwrap()
-                .exit_signal_linked_process(from, process, ExitReason::from("noproc"));
+            process_exit_signal_linked(from, process, ExitReason::from("noproc"));
         }
     } else {
         match node_lookup_remote(process.node()) {
@@ -69,10 +63,7 @@ pub fn link_install(process: Pid, from: Pid) {
                 node_send_frame(link.into(), node);
             }
             None => {
-                PROCESS_REGISTRY
-                    .write()
-                    .unwrap()
-                    .exit_signal_linked_process(from, process, ExitReason::from("noconnection"));
+                process_exit_signal_linked(from, process, ExitReason::from("noconnection"));
             }
         }
     }
@@ -104,8 +95,6 @@ pub fn link_process_down(from: Pid, exit_reason: ExitReason) {
 
     let mut remote_links: BTreeMap<u64, (LinkDown, Vec<Pid>)> = BTreeMap::new();
 
-    let mut registry = PROCESS_REGISTRY.write().unwrap();
-
     for pid in links {
         if pid.is_local() {
             LINKS.alter(&pid.id(), |_, mut value| {
@@ -113,7 +102,7 @@ pub fn link_process_down(from: Pid, exit_reason: ExitReason) {
                 value
             });
 
-            registry.exit_signal_linked_process(pid, from, exit_reason.clone());
+            process_exit_signal_linked(pid, from, exit_reason.clone());
         } else {
             let remote = remote_links
                 .entry(pid.node())

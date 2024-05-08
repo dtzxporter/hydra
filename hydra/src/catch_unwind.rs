@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::future::Future;
 use std::panic::catch_unwind;
 use std::panic::AssertUnwindSafe;

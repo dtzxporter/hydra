@@ -10,26 +10,32 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[hydra::main]
 async fn main() {
-    let pid1 = Process::spawn(async {
-        loop {
-            let Message::User(pid2) = Process::receive::<Pid>().await else {
-                panic!()
-            };
+    let workers = std::thread::available_parallelism()
+        .map(|cores| cores.get())
+        .unwrap_or(4);
 
-            COUNTER.fetch_add(1, Ordering::Relaxed);
+    for _ in 0..workers {
+        let pid1 = Process::spawn(async {
+            loop {
+                let Message::User(pid2) = Process::receive::<Pid>().await else {
+                    panic!()
+                };
 
-            Process::send(pid2, ());
-        }
-    });
+                COUNTER.fetch_add(1, Ordering::Relaxed);
 
-    Process::spawn(async move {
-        let pid2 = Process::current();
+                Process::send(pid2, ());
+            }
+        });
 
-        loop {
-            Process::send(pid1, pid2);
-            let _ = Process::receive::<()>().await;
-        }
-    });
+        Process::spawn(async move {
+            let pid2 = Process::current();
+
+            loop {
+                Process::send(pid1, pid2);
+                let _ = Process::receive::<()>().await;
+            }
+        });
+    }
 
     let start = std::time::Instant::now();
 

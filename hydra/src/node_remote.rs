@@ -39,6 +39,10 @@ use crate::node_register;
 use crate::node_remote_supervisor_down;
 use crate::node_send_frame;
 use crate::node_set_send_recv;
+use crate::process_exists_lock;
+use crate::process_exit;
+use crate::process_name_lookup;
+use crate::process_sender;
 use crate::ExitReason;
 use crate::Local;
 use crate::Message;
@@ -49,7 +53,6 @@ use crate::Pid;
 use crate::Process;
 use crate::ProcessItem;
 use crate::Reference;
-use crate::PROCESS_REGISTRY;
 
 type Reader = SplitStream<Framed<TcpStream, Codec>>;
 type Writer = SplitSink<Framed<TcpStream, Codec>, Frame>;
@@ -166,34 +169,31 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                     if let Some(id) = monitor.process_id {
                         let process = Pid::local(id);
 
-                        if PROCESS_REGISTRY.read().unwrap().processes.contains_key(&id) {
-                            monitor_create(process, reference, from, None);
-                            node_process_monitor_cleanup(
-                                supervisor.node.clone(),
-                                reference,
-                                process,
-                            );
-                        } else {
-                            let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
+                        process_exists_lock(process, |exists| {
+                            if exists {
+                                monitor_create(process, reference, from, None);
+                                node_process_monitor_cleanup(
+                                    supervisor.node.clone(),
+                                    reference,
+                                    process,
+                                );
+                            } else {
+                                let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
 
-                            monitor_down.monitors.push(reference.id());
+                                monitor_down.monitors.push(reference.id());
 
-                            node_send_frame(monitor_down.into(), node);
-                        }
+                                node_send_frame(monitor_down.into(), node);
+                            }
+                        });
                     } else if let Some(name) = monitor.process_name {
-                        let registry = PROCESS_REGISTRY.read().unwrap();
+                        if let Some(id) = process_name_lookup(&name) {
+                            monitor_create(id, reference, from, None);
 
-                        if let Some(id) = registry.named_processes.get(&name) {
-                            monitor_create(Pid::local(*id), reference, from, None);
-
-                            let monitor_update = MonitorUpdate::new(from_id, *id, reference.id());
+                            let monitor_update =
+                                MonitorUpdate::new(from_id, id.id(), reference.id());
 
                             node_send_frame(monitor_update.into(), node);
-                            node_process_monitor_cleanup(
-                                supervisor.node.clone(),
-                                reference,
-                                Pid::local(*id),
-                            );
+                            node_process_monitor_cleanup(supervisor.node.clone(), reference, id);
                         } else {
                             let mut monitor_down = MonitorDown::new(ExitReason::from("noproc"));
 
@@ -225,16 +225,8 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                 let reference = Reference::local(monitor_update.reference_id);
                 let from = Pid::remote(monitor_update.from_id, node);
 
-                PROCESS_REGISTRY
-                    .read()
-                    .unwrap()
-                    .processes
-                    .get(&monitor_update.process_id)
-                    .map(|process| {
-                        process
-                            .sender
-                            .send(ProcessItem::MonitorProcessUpdate(reference, from))
-                    });
+                process_sender(Pid::local(monitor_update.process_id))
+                    .map(|sender| sender.send(ProcessItem::MonitorProcessUpdate(reference, from)));
             }
             Frame::Link(link) => {
                 let node = node_register(supervisor.node.clone(), false);
@@ -279,10 +271,7 @@ async fn node_remote_receiver(mut reader: Reader, supervisor: Arc<NodeRemoteSupe
                 let process = Pid::local(exit.process_id);
                 let from = Pid::remote(exit.from_id, node);
 
-                PROCESS_REGISTRY
-                    .write()
-                    .unwrap()
-                    .exit_process(process, from, exit.exit_reason);
+                process_exit(process, from, exit.exit_reason);
             }
         }
     }

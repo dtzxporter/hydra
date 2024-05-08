@@ -15,6 +15,9 @@ use crate::node_process_monitor_destroy;
 use crate::node_process_monitor_destroy_all;
 use crate::node_register;
 use crate::node_send_frame;
+use crate::process_exists_lock;
+use crate::process_name_lookup;
+use crate::process_sender;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Node;
@@ -23,7 +26,6 @@ use crate::ProcessItem;
 use crate::ProcessMonitor;
 use crate::Reference;
 use crate::PROCESS;
-use crate::PROCESS_REGISTRY;
 
 /// A collection of the local processes being monitored, and the references that require the message.
 #[allow(clippy::type_complexity)]
@@ -122,13 +124,13 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
             });
 
             if pid.is_local() {
-                let registry = PROCESS_REGISTRY.read().unwrap();
-
-                if registry.processes.contains_key(&pid.id()) {
-                    monitor_create(pid, reference, from, Some(process));
-                } else {
-                    send_process_down(dest, ExitReason::from("noproc"));
-                }
+                process_exists_lock(pid, |exists| {
+                    if exists {
+                        monitor_create(pid, reference, from, Some(process));
+                    } else {
+                        send_process_down(dest, ExitReason::from("noproc"));
+                    }
+                });
             } else {
                 match node_lookup_remote(pid.node()) {
                     Some((name, address)) => {
@@ -155,9 +157,7 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
         }
         Dest::Named(name, node) => {
             if node.is_local() {
-                let registry = PROCESS_REGISTRY.read().unwrap();
-
-                let Some(process) = registry.named_processes.get(name.as_ref()) else {
+                let Some(pid) = process_name_lookup(name.as_ref()) else {
                     PROCESS.with(|process| {
                         process
                             .monitors
@@ -167,8 +167,6 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                     return send_process_down(dest, ExitReason::from("noproc"));
                 };
 
-                let pid = Pid::local(*process);
-
                 PROCESS.with(|process| {
                     process
                         .monitors
@@ -176,11 +174,13 @@ pub fn monitor_install(process: Dest, reference: Reference, from: Pid) {
                         .insert(reference, ProcessMonitor::ForProcess(Some(pid)))
                 });
 
-                if registry.processes.contains_key(process) {
-                    monitor_create(pid, reference, from, Some(dest));
-                } else {
-                    send_process_down(dest, ExitReason::from("noproc"));
-                }
+                process_exists_lock(pid, |exists| {
+                    if exists {
+                        monitor_create(pid, reference, from, Some(dest));
+                    } else {
+                        send_process_down(dest, ExitReason::from("noproc"));
+                    }
+                });
             } else {
                 PROCESS.with(|process| {
                     process
@@ -220,18 +220,13 @@ pub fn monitor_process_down(from: Pid, exit_reason: ExitReason) {
 
     for (reference, (pid, dest)) in references {
         if pid.is_local() {
-            PROCESS_REGISTRY
-                .read()
-                .unwrap()
-                .processes
-                .get(&pid.id())
-                .map(|process| {
-                    process.sender.send(ProcessItem::MonitorProcessDown(
-                        dest.unwrap(),
-                        reference,
-                        exit_reason.clone(),
-                    ))
-                });
+            process_sender(pid).map(|sender| {
+                sender.send(ProcessItem::MonitorProcessDown(
+                    dest.unwrap(),
+                    reference,
+                    exit_reason.clone(),
+                ))
+            });
         } else {
             let remote = remote_monitors
                 .entry(pid.node())

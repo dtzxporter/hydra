@@ -17,6 +17,8 @@ use crate::link_destroy;
 use crate::monitor_destroy;
 use crate::node_local_supervisor;
 use crate::node_remote_connector;
+use crate::process_exit_signal_linked;
+use crate::process_sender;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Local;
@@ -29,7 +31,6 @@ use crate::Pid;
 use crate::Process;
 use crate::ProcessItem;
 use crate::Reference;
-use crate::PROCESS_REGISTRY;
 
 /// Represents the node id always used for the local node.
 pub const LOCAL_NODE_ID: u64 = 0;
@@ -297,36 +298,26 @@ pub fn node_remote_supervisor_down(node: Node, process: Pid) {
         value.state = NodeState::Known;
 
         if let Some((_, links)) = NODE_LINKS.remove(&node) {
-            let mut registry = PROCESS_REGISTRY.write().unwrap();
-
             for (from, process_id) in links {
                 let process = Pid::local(process_id);
 
                 link_destroy(process, from);
 
-                registry.exit_signal_linked_process(
-                    process,
-                    from,
-                    ExitReason::from("noconnection"),
-                );
+                process_exit_signal_linked(process, from, ExitReason::from("noconnection"));
             }
         }
 
         if let Some((_, monitors)) = NODE_MONITORS.remove(&node) {
-            let registry = PROCESS_REGISTRY.read().unwrap();
-
             for (reference, monitor) in monitors {
                 match monitor {
                     NodeMonitor::Node(id) => {
-                        registry.processes.get(&id).map(|process| {
-                            process
-                                .sender
-                                .send(ProcessItem::MonitorNodeDown(node.clone(), reference))
+                        process_sender(Pid::local(id)).map(|sender| {
+                            sender.send(ProcessItem::MonitorNodeDown(node.clone(), reference))
                         });
                     }
                     NodeMonitor::ProcessMonitor(id, dest) => {
-                        registry.processes.get(&id).map(|process| {
-                            process.sender.send(ProcessItem::MonitorProcessDown(
+                        process_sender(Pid::local(id)).map(|sender| {
+                            sender.send(ProcessItem::MonitorProcessDown(
                                 dest,
                                 reference,
                                 ExitReason::from("noconnection"),
@@ -524,18 +515,13 @@ pub fn node_process_monitor_down(node: Node, reference: Reference, exit_reason: 
     alias_destroy(reference);
 
     if let Some(NodeMonitor::ProcessMonitor(id, dest)) = monitor {
-        PROCESS_REGISTRY
-            .read()
-            .unwrap()
-            .processes
-            .get(&id)
-            .map(|process| {
-                process.sender.send(ProcessItem::MonitorProcessDown(
-                    dest,
-                    reference,
-                    exit_reason,
-                ))
-            });
+        process_sender(Pid::local(id)).map(|sender| {
+            sender.send(ProcessItem::MonitorProcessDown(
+                dest,
+                reference,
+                exit_reason,
+            ))
+        });
     }
 }
 
@@ -549,10 +535,7 @@ pub fn node_process_link_down(node: Node, process: Pid, from: Pid, exit_reason: 
     });
 
     if found {
-        PROCESS_REGISTRY
-            .write()
-            .unwrap()
-            .exit_signal_linked_process(process, from, exit_reason);
+        process_exit_signal_linked(process, from, exit_reason);
     }
 }
 
