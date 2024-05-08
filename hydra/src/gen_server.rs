@@ -97,19 +97,19 @@ enum GenServerMessage<T: Send + 'static> {
 /// ```no_run
 /// // Start the server.
 /// let pid = Stack::new()
-///             .start_link(vec!["hello", "world"], GenServerOptions::new())
+///             .start_link(vec![String::from("hello"), String::from("world")], GenServerOptions::new())
 ///             .await
 ///             .expect("Failed to start stack!");
 ///
 /// // This is the client.
-/// Stack::call(pid, StackMessage::Pop)
+/// Stack::call(pid, StackMessage::Pop, None)
 ///         .await
 ///         .expect("Stack call failed!");
 /// // => StackMessage::PopResult("hello")
 ///
 /// Stack::cast(pid, StackMessage::Push(String::from("rust")))
 ///
-/// Stack::call(pid, StackMessage::Pop)
+/// Stack::call(pid, StackMessage::Pop, None)
 ///         .await
 ///         .expect("Stack call failed!");
 /// // => StackMessage::PopResult("rust")
