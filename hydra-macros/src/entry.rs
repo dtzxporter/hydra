@@ -18,7 +18,7 @@ pub(crate) fn main(_: TokenStream, item: TokenStream) -> TokenStream {
 
         impl ::hydra::Application for #input_struct {
             async fn start(&self) -> Result<::hydra::Pid, ::hydra::ExitReason> {
-                Ok(Process::spawn_link(async move {
+                Ok(::hydra::Process::spawn_link(async move {
                     #input_block
                 }))
             }
@@ -47,7 +47,7 @@ pub(crate) fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 
         impl ::hydra::Application for #input_struct {
             async fn start(&self) -> Result<::hydra::Pid, ::hydra::ExitReason> {
-                Ok(Process::spawn_link(async move {
+                Ok(::hydra::Process::spawn_link(async move {
                     #input_block
                 }))
             }
