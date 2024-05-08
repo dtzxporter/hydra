@@ -4,7 +4,7 @@ A framework for writing fault tolerant, highly scalable applications with the Ru
 
 - **Fast**: Native performance powered by Tokio's light weight task architecture.
 - **Scalable**: All Hydra code runs inside lightweight threads of execution (called `Processes`) that are isolated and exchange information via messages.
-- **Fault-Tolerant**: Inspired by Erlang/Elixir's OTP, Hydra provides many of the same concepts like `Supervisor` and `GenServer` to restart parts of your system when things to awry.
+- **Fault-Tolerant**: Inspired by Erlang/Elixir's OTP, Hydra provides many of the same concepts like `GenServer` and `Supervisor` to restart parts of your system when things to awry.
 - **Distributed**: Hydra provides built-in support for running a fully distributed cluster of processes over a network of any size.
 
 [![Crates.io][crates-badge]][crates-url]
