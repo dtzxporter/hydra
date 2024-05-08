@@ -47,6 +47,12 @@ impl ChildSpec {
         }
     }
 
+    /// Sets a new id for this [ChildSpec].
+    pub fn id<T: Into<String>>(mut self, id: T) -> Self {
+        self.id = id.into();
+        self
+    }
+
     /// The method invoked to start the child process.
     ///
     /// Must return a future that resolves to [Result<Pid, ExitReason>].

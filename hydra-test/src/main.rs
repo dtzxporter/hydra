@@ -1,15 +1,16 @@
 use std::time::Duration;
-use std::time::Instant;
 
 use serde::Deserialize;
 use serde::Serialize;
 
+use hydra::Application;
+use hydra::CallError;
 use hydra::ChildSpec;
+use hydra::Dest;
 use hydra::ExitReason;
 use hydra::From;
 use hydra::GenServer;
 use hydra::GenServerOptions;
-use hydra::Local;
 use hydra::Process;
 use hydra::SupervisionStrategy;
 use hydra::Supervisor;
@@ -17,27 +18,73 @@ use hydra::Supervisor;
 #[derive(Debug, Serialize, Deserialize)]
 enum MyMessage {
     Hello(String),
-    Bye(Vec<u8>, Local<Instant>),
-    Call(i32),
-    Resp(String),
+    HelloResponse(String),
     Crash,
 }
 
+struct MyApplication;
+
+impl Application for MyApplication {
+    // Enable tracing panic messages.
+    const TRACING_PANICS: bool = true;
+    // Enable tracing subscriber with recommended settings.
+    const TRACING_SUBSCRIBE: bool = true;
+
+    async fn start(&self) -> Result<hydra::Pid, ExitReason> {
+        // Spawn two instances of `MyServer` with their own unique ids.
+        let children = [
+            MyServer::child_spec(()).id("server1"),
+            MyServer::child_spec(()).id("server2"),
+        ];
+
+        // Restart only the terminated child.
+        Supervisor::with_children(children)
+            .strategy(SupervisionStrategy::OneForOne)
+            .start_link(GenServerOptions::new())
+            .await
+    }
+}
+
 struct MyServer;
+
+impl MyServer {
+    /// A wrapper around the GenServer call "Hello".
+    pub async fn hello<T: Into<Dest>>(server: T, string: &str) -> Result<String, CallError> {
+        match MyServer::call(server, MyMessage::Hello(string.to_owned()), None).await? {
+            MyMessage::HelloResponse(response) => Ok(response),
+            _ => unreachable!(),
+        }
+    }
+}
 
 impl GenServer for MyServer {
     type InitArg = ();
     type Message = MyMessage;
 
     async fn init(&mut self, _init_arg: Self::InitArg) -> Result<(), ExitReason> {
-        let id = Process::current();
+        let server = Process::current();
 
         Process::spawn(async move {
+            // Ask for a formatted string.
+            let hello_world = MyServer::hello(server, "hello")
+                .await
+                .expect("Failed to call server!");
+
+            tracing::info!("Got: {:?}", hello_world);
+
+            // Wait before crashing.
             Process::sleep(Duration::from_secs(1)).await;
-            MyServer::cast(id, MyMessage::Crash);
+
+            // Crash the process so the supervisor restarts it.
+            MyServer::cast(server, MyMessage::Crash);
         });
 
         Ok(())
+    }
+
+    fn child_spec(init_arg: Self::InitArg) -> ChildSpec {
+        ChildSpec::new("MyServer")
+            .start(move || MyServer::start_link(MyServer, init_arg, GenServerOptions::new()))
     }
 
     async fn handle_call(
@@ -46,8 +93,10 @@ impl GenServer for MyServer {
         _from: From,
     ) -> Result<Option<Self::Message>, ExitReason> {
         match message {
-            MyMessage::Hello(string) => Ok(Some(MyMessage::Resp(format!("{} world!", string)))),
-            _ => Err(ExitReason::Kill),
+            MyMessage::Hello(string) => {
+                Ok(Some(MyMessage::HelloResponse(format!("{} world!", string))))
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -56,45 +105,12 @@ impl GenServer for MyServer {
             MyMessage::Crash => {
                 panic!("Whoops! We crashed!");
             }
-            _ => Ok(()),
+            _ => unreachable!(),
         }
     }
 }
 
-#[hydra::main]
-async fn main() {
-    let server = MyServer;
-    let server = server
-        .start((), GenServerOptions::new())
-        .await
-        .expect("Failed to start MyServer!");
-
-    let children = [
-        ChildSpec::new("server")
-            .start(|| MyServer::start_link(MyServer, (), GenServerOptions::new())),
-        ChildSpec::new("server2")
-            .start(|| MyServer::start_link(MyServer, (), GenServerOptions::new())),
-    ];
-
-    let supervisor = Supervisor::with_children(children)
-        .strategy(SupervisionStrategy::OneForOne)
-        .start_link(GenServerOptions::new())
-        .await
-        .expect("Failed to start supervisor!");
-
-    tracing::info!("Supervisor started: {:?}", supervisor);
-
-    let start = std::time::Instant::now();
-
-    for _ in 0..500 {
-        let _response = MyServer::call(server, MyMessage::Hello(String::from("hello")), None)
-            .await
-            .expect("Failed to call MyServer!");
-    }
-
-    tracing::info!("Average req/reply latency: {:?}", start.elapsed() / 500);
-
-    loop {
-        let _ = Process::receive::<()>().await;
-    }
+fn main() {
+    // This method will only return once the supervisor linked in `start` has terminated.
+    Application::run(MyApplication)
 }
