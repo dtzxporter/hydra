@@ -1,6 +1,3 @@
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::Ordering;
-
 use tokio::task::JoinHandle;
 
 use crate::ExitReason;
@@ -16,7 +13,7 @@ pub struct ProcessRegistration {
     /// Registered name of this process or [None] when unregistered.
     pub name: Option<String>,
     /// Process flags.
-    pub flags: AtomicU32,
+    pub flags: ProcessFlags,
     /// Process exit reason.
     pub exit_reason: Option<ExitReason>,
 }
@@ -28,19 +25,8 @@ impl ProcessRegistration {
             handle,
             sender,
             name: None,
-            flags: AtomicU32::new(ProcessFlags::empty().bits()),
+            flags: ProcessFlags::empty(),
             exit_reason: None,
         }
-    }
-
-    /// Gets the current process flags.
-    #[must_use]
-    pub fn flags(&self) -> ProcessFlags {
-        ProcessFlags::from_bits_retain(self.flags.load(Ordering::Acquire))
-    }
-
-    /// Sets the current process flags.
-    pub fn set_flags(&self, flags: ProcessFlags) {
-        self.flags.store(flags.bits(), Ordering::Release)
     }
 }

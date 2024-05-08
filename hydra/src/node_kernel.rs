@@ -6,6 +6,8 @@ use crate::frame::SendTarget;
 use crate::alias_retrieve;
 use crate::node_register;
 use crate::node_send_frame;
+use crate::process_name_lookup;
+use crate::process_sender;
 use crate::serialize_value;
 use crate::ExitReason;
 use crate::Node;
@@ -13,35 +15,18 @@ use crate::Pid;
 use crate::ProcessItem;
 use crate::Receivable;
 use crate::Reference;
-use crate::PROCESS_REGISTRY;
 
 /// Forwards an incoming nodes send frame message to the target if it exists.
 pub fn node_forward_send(send: Send) {
     match send.target {
         SendTarget::Pid(id) => {
-            PROCESS_REGISTRY
-                .read()
-                .unwrap()
-                .processes
-                .get(&id.get())
-                .map(|process| {
-                    process
-                        .sender
-                        .send(ProcessItem::UserRemoteMessage(send.message))
-                });
+            process_sender(Pid::local(id.get()))
+                .map(|sender| sender.send(ProcessItem::UserRemoteMessage(send.message)));
         }
         SendTarget::Named(name) => {
-            let registry = PROCESS_REGISTRY.read().unwrap();
-
-            registry
-                .named_processes
-                .get(&name)
-                .and_then(|id| registry.processes.get(id))
-                .map(|process| {
-                    process
-                        .sender
-                        .send(ProcessItem::UserRemoteMessage(send.message))
-                });
+            process_name_lookup(&name)
+                .and_then(process_sender)
+                .map(|sender| sender.send(ProcessItem::UserRemoteMessage(send.message)));
         }
         SendTarget::Alias(alias) => {
             alias_retrieve(Reference::Local(alias)).map(|alias| {

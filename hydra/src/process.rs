@@ -27,9 +27,22 @@ use crate::node_process_send_exit;
 use crate::node_process_send_with_alias;
 use crate::node_process_send_with_name;
 use crate::node_process_send_with_pid;
+use crate::process_alive;
+use crate::process_drop;
+use crate::process_exit;
+use crate::process_flags;
+use crate::process_insert;
+use crate::process_list;
+use crate::process_name_list;
+use crate::process_name_lookup;
+use crate::process_name_remove;
+use crate::process_register;
+use crate::process_sender;
+use crate::process_set_exit_reason;
+use crate::process_set_flags;
+use crate::process_unregister;
 use crate::ArgumentError;
 use crate::AsyncCatchUnwind;
-use crate::CatchUnwind;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Message;
@@ -42,7 +55,6 @@ use crate::ProcessRegistration;
 use crate::Receivable;
 use crate::Reference;
 use crate::Timeout;
-use crate::PROCESS_REGISTRY;
 
 /// The send type for a process.
 pub(crate) type ProcessSend = Sender<ProcessItem>;
@@ -117,12 +129,7 @@ impl Process {
     /// Returns the [Pid] registered under `name` or [None] if the name is not registered.
     #[must_use]
     pub fn whereis<S: AsRef<str>>(name: S) -> Option<Pid> {
-        PROCESS_REGISTRY
-            .read()
-            .unwrap()
-            .named_processes
-            .get(name.as_ref())
-            .map(|process_id| Pid::local(*process_id))
+        process_name_lookup(name.as_ref())
     }
 
     /// Sends a single message to `dest` with the given `message`.
@@ -132,25 +139,16 @@ impl Process {
         match dest {
             Dest::Pid(pid) => {
                 if pid.is_local() {
-                    PROCESS_REGISTRY
-                        .read()
-                        .unwrap()
-                        .processes
-                        .get(&pid.id())
-                        .map(|process| process.sender.send(Message::User(message).into()));
+                    process_sender(pid).map(|sender| sender.send(Message::User(message).into()));
                 } else {
                     node_process_send_with_pid(pid, message);
                 }
             }
             Dest::Named(name, node) => {
                 if node.is_local() {
-                    let registry = PROCESS_REGISTRY.read().unwrap();
-
-                    registry
-                        .named_processes
-                        .get(name.as_ref())
-                        .and_then(|id| registry.processes.get(id))
-                        .map(|process| process.sender.send(Message::User(message).into()));
+                    process_name_lookup(name.as_ref())
+                        .and_then(process_sender)
+                        .map(|sender| sender.send(Message::User(message).into()));
                 } else {
                     node_process_send_with_name(name.into_owned(), node, message);
                 }
@@ -202,18 +200,6 @@ impl Process {
         }
     }
 
-    /// Spawns the given `function` as a blocking process and returns it's [Pid].
-    pub fn spawn_blocking<T, R>(function: T) -> Pid
-    where
-        T: FnOnce() -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        match spawn_blocking_internal(function, false, false) {
-            SpawnResult::Pid(pid) => pid,
-            SpawnResult::PidMonitor(_, _) => unreachable!(),
-        }
-    }
-
     /// Spawns the given `function` as a process, creates a link between the calling process, and returns the new [Pid].
     pub fn spawn_link<T>(function: T) -> Pid
     where
@@ -221,18 +207,6 @@ impl Process {
         T::Output: Send + 'static,
     {
         match spawn_internal(function, true, false) {
-            SpawnResult::Pid(pid) => pid,
-            SpawnResult::PidMonitor(_, _) => unreachable!(),
-        }
-    }
-
-    /// Spawns the given `function` as a blocking process, creates a link between the calling process, and returns the new [Pid].
-    pub fn spawn_blocking_link<T, R>(function: T) -> Pid
-    where
-        T: FnOnce() -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        match spawn_blocking_internal(function, true, false) {
             SpawnResult::Pid(pid) => pid,
             SpawnResult::PidMonitor(_, _) => unreachable!(),
         }
@@ -250,32 +224,10 @@ impl Process {
         }
     }
 
-    /// Spawns the given `function` as a blocking process, creates a monitor for the calling process, and returns the new [Pid].
-    pub fn spawn_blocking_monitor<T, R>(function: T) -> (Pid, Reference)
-    where
-        T: FnOnce() -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        match spawn_blocking_internal(function, false, true) {
-            SpawnResult::Pid(_) => unreachable!(),
-            SpawnResult::PidMonitor(pid, monitor) => (pid, monitor),
-        }
-    }
-
     /// Returns true if the given [Pid] is alive on the local node.
     #[must_use]
     pub fn alive(pid: Pid) -> bool {
-        if pid.is_remote() {
-            panic!("Expected a local pid!");
-        }
-
-        PROCESS_REGISTRY
-            .read()
-            .unwrap()
-            .processes
-            .get(&pid.id())
-            .map(|process| process.exit_reason.is_none())
-            .unwrap_or_default()
+        process_alive(pid)
     }
 
     /// Sleeps the current process for the given duration.
@@ -295,81 +247,24 @@ impl Process {
 
     /// Registers the given [Pid] under `name` if the process is local, active, and the name is not already registered.
     pub fn register<S: Into<String>>(pid: Pid, name: S) -> Result<(), ArgumentError> {
-        let name = name.into();
-
-        if pid.is_remote() {
-            return Err(ArgumentError::from("Expected local pid for register!"));
-        }
-
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-
-        if registry.named_processes.contains_key(&name) {
-            return Err(ArgumentError::from(format!(
-                "Name {:?} registered to another process!",
-                name
-            )));
-        }
-
-        let process = match registry.processes.get(&pid.id()) {
-            Some(process) => process,
-            None => return Err(ArgumentError::from("Process does not exist!")),
-        };
-
-        if process.name.is_some() {
-            return Err(ArgumentError::from(format!(
-                "Process {:?} was already registered!",
-                pid
-            )));
-        }
-
-        if let Some(process) = registry.processes.get_mut(&pid.id()) {
-            process.name = Some(name.clone());
-        }
-
-        registry.named_processes.insert(name, pid.id());
-
-        Ok(())
+        process_register(pid, name.into())
     }
 
     /// Removes the registered `name`, associated with a [Pid].
-    pub fn unregister<S: Into<String>>(name: S) {
-        let name = name.into();
-
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-
-        if let Some(named_pid) = registry.named_processes.remove(&name) {
-            if let Some(process) = registry.processes.get_mut(&named_pid) {
-                process.name = None;
-            }
-        } else {
-            drop(registry);
-            panic!("Name {:?} was not registered!", name);
-        }
+    pub fn unregister<S: AsRef<str>>(name: S) {
+        process_unregister(name.as_ref());
     }
 
     /// Returns a [Vec] of registered process names.
     #[must_use]
     pub fn registered() -> Vec<String> {
-        PROCESS_REGISTRY
-            .read()
-            .unwrap()
-            .named_processes
-            .keys()
-            .cloned()
-            .collect()
+        process_name_list()
     }
 
     /// Returns a [Vec] of [Pid]'s on the local node.
     #[must_use]
     pub fn list() -> Vec<Pid> {
-        PROCESS_REGISTRY
-            .read()
-            .unwrap()
-            .processes
-            .keys()
-            .copied()
-            .map(Pid::local)
-            .collect()
+        process_list()
     }
 
     /// Creates a bi-directional link between the current process and the given process.
@@ -454,24 +349,12 @@ impl Process {
     /// Returns the current process flags.
     #[must_use]
     pub fn flags() -> ProcessFlags {
-        PROCESS_REGISTRY
-            .read()
-            .unwrap()
-            .processes
-            .get(&Self::current().id())
-            .unwrap()
-            .flags()
+        process_flags(Self::current()).unwrap()
     }
 
     /// Sets one or more process flags.
     pub fn set_flags(flags: ProcessFlags) {
-        PROCESS_REGISTRY
-            .read()
-            .unwrap()
-            .processes
-            .get(&Self::current().id())
-            .unwrap()
-            .set_flags(flags)
+        process_set_flags(Self::current(), flags)
     }
 
     /// Sends an exit signal with the given reason to [Pid].
@@ -479,10 +362,7 @@ impl Process {
         let exit_reason = exit_reason.into();
 
         if pid.is_local() {
-            PROCESS_REGISTRY
-                .write()
-                .unwrap()
-                .exit_process(pid, Self::current(), exit_reason);
+            process_exit(pid, Self::current(), exit_reason);
         } else {
             node_process_send_exit(pid, Self::current(), exit_reason);
         }
@@ -491,15 +371,11 @@ impl Process {
 
 impl Drop for Process {
     fn drop(&mut self) {
-        let mut registry = PROCESS_REGISTRY.write().unwrap();
-
-        let process = registry.processes.remove(&self.pid.id()).unwrap();
+        let process = process_drop(self.pid).unwrap();
 
         if let Some(name) = process.name {
-            registry.named_processes.remove(&name);
+            process_name_remove(&name);
         }
-
-        drop(registry);
 
         let exit_reason = process.exit_reason.unwrap_or_default();
 
@@ -527,7 +403,6 @@ where
     T: Future<Output = ()> + Send + 'static,
     T::Output: Send + 'static,
 {
-    let mut registry = PROCESS_REGISTRY.write().unwrap();
     let next_id = ID.fetch_add(1, Ordering::Relaxed);
 
     let (tx, rx) = flume::unbounded();
@@ -564,85 +439,12 @@ where
     // Spawn the process with the newly created process object in scope.
     let handle = tokio::spawn(PROCESS.scope(process, async move {
         if let Err(e) = AsyncCatchUnwind::new(AssertUnwindSafe(function)).await {
-            if let Some(process) = PROCESS_REGISTRY
-                .write()
-                .unwrap()
-                .processes
-                .get_mut(&Process::current().id())
-            {
-                process.exit_reason = Some(e.into());
-            }
+            process_set_exit_reason(Process::current(), e.into());
         }
     }));
 
     // Register the process under it's new id.
-    registry
-        .processes
-        .insert(next_id, ProcessRegistration::new(handle, tx));
-
-    result
-}
-
-/// Internal spawn blocking utility.
-fn spawn_blocking_internal<T, R>(function: T, link: bool, monitor: bool) -> SpawnResult
-where
-    T: FnOnce() -> R + Send + 'static,
-    R: Send + 'static,
-{
-    let mut registry = PROCESS_REGISTRY.write().unwrap();
-    let next_id = ID.fetch_add(1, Ordering::Relaxed);
-
-    let (tx, rx) = flume::unbounded();
-
-    let pid = Pid::local(next_id);
-    let process = Process::new(pid, tx.clone(), rx);
-
-    let mut result = SpawnResult::Pid(pid);
-
-    // If a link was requested, insert it before spawning the process.
-    if link {
-        let current = Process::current();
-
-        link_create(pid, current, true);
-        link_create(current, pid, true);
-    }
-
-    // If a monitor was requested, insert it before spawning the process.
-    if monitor {
-        let monitor = Reference::new();
-
-        PROCESS.with(|process| {
-            process
-                .monitors
-                .borrow_mut()
-                .insert(monitor, ProcessMonitor::ForProcess(Some(pid)))
-        });
-
-        monitor_create(pid, monitor, Process::current(), Some(pid.into()));
-
-        result = SpawnResult::PidMonitor(pid, monitor);
-    }
-
-    // Spawn the process with the newly created process object in scope.
-    let handle = tokio::task::spawn_blocking(move || {
-        PROCESS.sync_scope(process, move || {
-            if let Err(e) = CatchUnwind::new(AssertUnwindSafe(function)) {
-                if let Some(process) = PROCESS_REGISTRY
-                    .write()
-                    .unwrap()
-                    .processes
-                    .get_mut(&Process::current().id())
-                {
-                    process.exit_reason = Some(e.into());
-                }
-            }
-        });
-    });
-
-    // Register the process under it's new id.
-    registry
-        .processes
-        .insert(next_id, ProcessRegistration::new(handle, tx));
+    process_insert(next_id, ProcessRegistration::new(handle, tx));
 
     result
 }
