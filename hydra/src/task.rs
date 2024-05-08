@@ -21,6 +21,9 @@ use tokio::task::JoinHandle;
 /// - GenServer::call
 ///
 /// You can however return a value in a task and await it to receive the value.
+///
+/// It's not recommended to `await` long running tasks in a `GenServer` since it will delay processing of other messages.
+/// Instead, you should send a `cast` with the result of your task and handle it in `handle_cast`.
 pub struct Task;
 
 /// The result of a spawned task, can be used to await the task result, or shutdown the task.
@@ -64,6 +67,26 @@ impl Task {
         task.handle
             .await
             .map_err(|error| TaskError(error.to_string()))
+    }
+
+    /// Await many tasks at once and returns their results in order, or returns the first error that occurs.
+    pub async fn await_many<R, const N: usize>(
+        tasks: [TaskHandle<R>; N],
+    ) -> Result<Vec<R>, TaskError>
+    where
+        R: 'static,
+    {
+        let mut results: Vec<R> = Vec::with_capacity(N);
+
+        for task in tasks {
+            results.push(
+                task.handle
+                    .await
+                    .map_err(|error| TaskError(error.to_string()))?,
+            );
+        }
+
+        Ok(results)
     }
 }
 
