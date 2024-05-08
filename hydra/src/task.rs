@@ -34,10 +34,11 @@ pub struct TaskHandle<R> {
 
 /// An error occured while executing the task.
 #[derive(Debug)]
-pub struct TaskError(String);
+pub struct TaskError(pub String);
 
 impl Task {
     /// Runs the provided asynchronous `task`.
+    #[track_caller]
     pub fn spawn<F>(task: F) -> TaskHandle<F::Output>
     where
         F: Future + Send + 'static,
@@ -49,6 +50,7 @@ impl Task {
     }
 
     /// Runs the provided synchronous `task` on a thread where blocking is acceptable.
+    #[track_caller]
     pub fn spawn_blocking<F, R>(task: F) -> TaskHandle<R>
     where
         F: FnOnce() -> R + Send + 'static,
