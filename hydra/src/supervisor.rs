@@ -26,6 +26,7 @@ use crate::Shutdown;
 use crate::SystemMessage;
 
 /// A supervision child.
+#[derive(Clone)]
 struct SupervisedChild {
     spec: ChildSpec,
     pid: Option<Pid>,
@@ -115,6 +116,7 @@ pub enum SupervisionStrategy {
 /// A supervisor is a process which supervises other processes, which we refer to as child processes.
 /// Supervisors are used to build a hierarchical process structure called a supervision tree.
 /// Supervision trees provide fault-tolerance and encapsulate how our applications start and shutdown.
+#[derive(Clone)]
 pub struct Supervisor {
     children: Vec<SupervisedChild>,
     identifiers: BTreeSet<String>,
@@ -168,11 +170,9 @@ impl Supervisor {
     }
 
     /// Builds a child specification for this [Supervisor] process.
-    pub fn child_spec(children: Vec<ChildSpec>) -> ChildSpec {
+    pub fn child_spec(self, options: GenServerOptions) -> ChildSpec {
         ChildSpec::new("Supervisor")
-            .start(move || {
-                Supervisor::with_children(children.clone()).start_link(GenServerOptions::new())
-            })
+            .start(move || self.clone().start_link(options.clone()))
             .child_type(ChildType::Supervisor)
     }
 

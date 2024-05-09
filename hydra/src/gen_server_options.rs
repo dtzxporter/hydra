@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 /// Options used to configure a [GenServer].
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct GenServerOptions {
     pub(crate) name: Option<String>,
     pub(crate) timeout: Option<Duration>,
