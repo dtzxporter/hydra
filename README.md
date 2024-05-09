@@ -152,6 +152,13 @@ The following projects are related to, or in use in Hydra such that it would be 
 ## Changelog
 [View Changelog](https://github.com/dtzxporter/hydra/blob/main/CHANGELOG.md)
 
+## Benchmark
+There is a message passing benchmark in the examples you can run using `cargo run --example=benchmark --release`. I've gotten the following results:
+
+- **Intel 14700k**: 25902612 msg/s
+- **Intel 7700k**: 7332666 msg/s
+- **Apple M1 Max**: 5053229 msg/s
+
 ## License
 This project is licensed under the [MIT license](https://github.com/dtzxporter/hydra/blob/main/LICENSE)
 
