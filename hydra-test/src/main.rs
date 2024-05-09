@@ -52,8 +52,10 @@ impl MyServer {
 
     /// A wrapper around the GenServer call "Hello".
     pub async fn hello<T: Into<Dest>>(server: T, string: &str) -> Result<String, CallError> {
-        match MyServer::call(server, MyMessage::Hello(string.to_owned()), None).await? {
-            MyMessage::HelloResponse(response) => Ok(response),
+        use MyMessage::*;
+
+        match MyServer::call(server, Hello(string.to_owned()), None).await? {
+            HelloResponse(response) => Ok(response),
             _ => unreachable!(),
         }
     }
@@ -94,17 +96,19 @@ impl GenServer for MyServer {
         message: Self::Message,
         _from: From,
     ) -> Result<Option<Self::Message>, ExitReason> {
+        use MyMessage::*;
+
         match message {
-            MyMessage::Hello(string) => {
-                Ok(Some(MyMessage::HelloResponse(format!("{} world!", string))))
-            }
+            Hello(string) => Ok(Some(HelloResponse(format!("{} world!", string)))),
             _ => unreachable!(),
         }
     }
 
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
+        use MyMessage::*;
+
         match message {
-            MyMessage::Crash => {
+            Crash => {
                 panic!("Whoops! We crashed!");
             }
             _ => unreachable!(),
