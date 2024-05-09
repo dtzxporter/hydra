@@ -42,7 +42,7 @@ pub fn node_forward_send(send: Send) {
 pub fn node_process_send_exit(pid: Pid, from: Pid, exit_reason: ExitReason) {
     let exit = Exit::new(pid.id(), from.id(), exit_reason);
 
-    node_send_frame(exit.into(), pid.node());
+    node_send_frame(Frame::from(exit), pid.node());
 }
 
 /// Sends the given message to the remote node with the given pid.
