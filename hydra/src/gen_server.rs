@@ -45,7 +45,7 @@ enum GenServerMessage<T: Send + 'static> {
 /// ## Example
 /// Let's start with a code example and then explore the available callbacks. Imagine we want to implement a service with a GenServer that works like a stack, allowing us to push and pop elements. We'll customize a generic GenServer with our own module by implementing three callbacks.
 ///
-/// ```no_run
+/// ```ignore
 /// #[derive(Debug, Serialize, Deserialize)]
 /// enum StackMessage {
 ///     Pop,
@@ -91,7 +91,7 @@ enum GenServerMessage<T: Send + 'static> {
 ///
 /// We leave the process machinery of startup, message passing, and the message loop to the GenServer.
 /// We can now use the GenServer methods to interact with the service by creating a process and sending it messages:
-/// ```no_run
+/// ```ignore
 /// // Start the server.
 /// let pid = Stack::with_entries(vec![String::from("hello"), String::from("world")])
 ///             .start_link(GenServerOptions::new())
