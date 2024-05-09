@@ -136,6 +136,8 @@ fn main() {
 }
 ```
 
+Find more examples in the [examples](https://github.com/dtzxporter/hydra/tree/main/hydra/examples) folder. You can run them with: `cargo run --example=stack`.
+
 ## Related Projects
 The following projects are related to, or in use in Hydra such that it would be wise to learn them as well:
 
