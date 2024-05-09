@@ -11,6 +11,7 @@ A framework for writing fault tolerant, highly scalable applications with the Ru
 <!-- [![Crates.io][crates-badge]][crates-url] -->
 <!-- [![Docs.rs][docs-badge]][docs-url] -->
 [![MIT licensed][mit-badge]][mit-url]
+[![Build Status][actions-badge]][actions-url]
 
 [crates-badge]: https://img.shields.io/crates/v/hydra.svg
 [crates-url]: https://crates.io/crates/hydra
@@ -18,6 +19,8 @@ A framework for writing fault tolerant, highly scalable applications with the Ru
 [docs-url]: https://docs.rs/hydra
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/dtzxporter/hydra/blob/main/LICENSE
+[actions-badge]: https://github.com/dtzxporter/hydra/workflows/CI/badge.svg
+[actions-url]: https://github.com/dtzxporter/hydra/actions/workflows/ci.yml?query=branch%3Amain++
 
 ## Overview
 Hydra runs on the [Tokio](https://github.com/tokio-rs/tokio) runtime, known for powering reliable, asynchronous, and slim applications with the Rust programming language. At a high level, Hydra provides the following major components:
