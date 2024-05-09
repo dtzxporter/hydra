@@ -7,8 +7,9 @@ A framework for writing fault tolerant, highly scalable applications with the Ru
 - **Fault-Tolerant**: Inspired by Erlang/Elixir's OTP, Hydra provides many of the same concepts like `GenServer` and `Supervisor` to restart parts of your system when things to awry.
 - **Distributed**: Hydra provides built-in support for running a fully distributed cluster of processes over a network of any size.
 
-[![Crates.io][crates-badge]][crates-url]
-[![Docs.rs][docs-badge]][docs-url]
+<!-- Remove until we sort out the issues with crates.io>
+<!-- [![Crates.io][crates-badge]][crates-url] -->
+<!-- [![Docs.rs][docs-badge]][docs-url] -->
 [![MIT licensed][mit-badge]][mit-url]
 
 [crates-badge]: https://img.shields.io/crates/v/hydra.svg
