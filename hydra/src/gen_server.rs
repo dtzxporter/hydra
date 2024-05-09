@@ -7,7 +7,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::CallError;
-use crate::ChildSpec;
 use crate::Dest;
 use crate::ExitReason;
 use crate::From;
@@ -134,11 +133,6 @@ pub trait GenServer: Sized + Send + 'static {
         options: GenServerOptions,
     ) -> impl Future<Output = Result<Pid, ExitReason>> + Send {
         async { start_gen_server(self, options, true).await }
-    }
-
-    /// Builds a child specification for this [GenServer] process.
-    fn child_spec() -> ChildSpec {
-        unimplemented!("User must implement child_spec")
     }
 
     /// Synchronously stops the server with the given `reason`.

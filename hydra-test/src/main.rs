@@ -29,8 +29,8 @@ impl Application for MyApplication {
     async fn start(&self) -> Result<Pid, ExitReason> {
         // Spawn two instances of `MyServer` with their own unique ids.
         let children = [
-            MyServer::child_spec().id("server1"),
-            MyServer::child_spec().id("server2"),
+            MyServer::new().child_spec().id("server1"),
+            MyServer::new().child_spec().id("server2"),
         ];
 
         // Restart only the terminated child.
@@ -41,15 +41,27 @@ impl Application for MyApplication {
     }
 }
 
+#[derive(Clone)]
 struct MyServer;
 
 impl MyServer {
+    /// Constructs a new [MyServer].
+    pub fn new() -> Self {
+        Self
+    }
+
     /// A wrapper around the GenServer call "Hello".
     pub async fn hello<T: Into<Dest>>(server: T, string: &str) -> Result<String, CallError> {
         match MyServer::call(server, MyMessage::Hello(string.to_owned()), None).await? {
             MyMessage::HelloResponse(response) => Ok(response),
             _ => unreachable!(),
         }
+    }
+
+    /// Builds the child specification for [MyServer].
+    pub fn child_spec(self) -> ChildSpec {
+        ChildSpec::new("MyServer")
+            .start(move || MyServer::start_link(MyServer, GenServerOptions::new()))
     }
 }
 
@@ -75,11 +87,6 @@ impl GenServer for MyServer {
         });
 
         Ok(())
-    }
-
-    fn child_spec() -> ChildSpec {
-        ChildSpec::new("MyServer")
-            .start(move || MyServer::start_link(MyServer, GenServerOptions::new()))
     }
 
     async fn handle_call(
