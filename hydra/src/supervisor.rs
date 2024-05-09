@@ -217,10 +217,10 @@ impl Supervisor {
     pub async fn count_children<T: Into<Dest>>(
         server: T,
     ) -> Result<SupervisorCounts, SupervisorError> {
-        let message = SupervisorMessage::CountChildren;
+        use SupervisorMessage::*;
 
-        match Supervisor::call(server, message, None).await? {
-            SupervisorMessage::CountChildrenSuccess(counts) => Ok(counts),
+        match Supervisor::call(server, CountChildren, None).await? {
+            CountChildrenSuccess(counts) => Ok(counts),
             _ => unreachable!(),
         }
     }
@@ -230,11 +230,11 @@ impl Supervisor {
         server: T,
         child: ChildSpec,
     ) -> Result<Option<Pid>, SupervisorError> {
-        let message = SupervisorMessage::StartChild(Local::new(child));
+        use SupervisorMessage::*;
 
-        match Supervisor::call(server, message, None).await? {
-            SupervisorMessage::StartChildSuccess(pid) => Ok(pid),
-            SupervisorMessage::StartChildError(error) => Err(error),
+        match Supervisor::call(server, StartChild(Local::new(child)), None).await? {
+            StartChildSuccess(pid) => Ok(pid),
+            StartChildError(error) => Err(error),
             _ => unreachable!(),
         }
     }
@@ -250,11 +250,11 @@ impl Supervisor {
         server: T,
         child_id: I,
     ) -> Result<(), SupervisorError> {
-        let message = SupervisorMessage::TerminateChild(child_id.into());
+        use SupervisorMessage::*;
 
-        match Supervisor::call(server, message, None).await? {
-            SupervisorMessage::TerminateChildSuccess => Ok(()),
-            SupervisorMessage::TerminateChildError(error) => Err(error),
+        match Supervisor::call(server, TerminateChild(child_id.into()), None).await? {
+            TerminateChildSuccess => Ok(()),
+            TerminateChildError(error) => Err(error),
             _ => unreachable!(),
         }
     }
@@ -269,11 +269,11 @@ impl Supervisor {
         server: T,
         child_id: I,
     ) -> Result<Option<Pid>, SupervisorError> {
-        let message = SupervisorMessage::RestartChild(child_id.into());
+        use SupervisorMessage::*;
 
-        match Supervisor::call(server, message, None).await? {
-            SupervisorMessage::RestartChildSuccess(pid) => Ok(pid),
-            SupervisorMessage::RestartChildError(error) => Err(error),
+        match Supervisor::call(server, RestartChild(child_id.into()), None).await? {
+            RestartChildSuccess(pid) => Ok(pid),
+            RestartChildError(error) => Err(error),
             _ => unreachable!(),
         }
     }
@@ -285,11 +285,11 @@ impl Supervisor {
         server: T,
         child_id: I,
     ) -> Result<(), SupervisorError> {
-        let message = SupervisorMessage::DeleteChild(child_id.into());
+        use SupervisorMessage::*;
 
-        match Supervisor::call(server, message, None).await? {
-            SupervisorMessage::DeleteChildSuccess => Ok(()),
-            SupervisorMessage::DeleteChildError(error) => Err(error),
+        match Supervisor::call(server, DeleteChild(child_id.into()), None).await? {
+            DeleteChildSuccess => Ok(()),
+            DeleteChildError(error) => Err(error),
             _ => unreachable!(),
         }
     }
@@ -298,10 +298,10 @@ impl Supervisor {
     pub async fn which_children<T: Into<Dest>>(
         server: T,
     ) -> Result<Vec<SupervisorChildInfo>, SupervisorError> {
-        let message = SupervisorMessage::WhichChildren;
+        use SupervisorMessage::*;
 
-        match Supervisor::call(server, message, None).await? {
-            SupervisorMessage::WhichChildrenSuccess(info) => Ok(info),
+        match Supervisor::call(server, WhichChildren, None).await? {
+            WhichChildrenSuccess(info) => Ok(info),
             _ => unreachable!(),
         }
     }
@@ -533,6 +533,8 @@ impl Supervisor {
 
     /// Restarts one or more children starting with the given `index` based on the current strategy.
     async fn restart(&mut self, index: usize) {
+        use SupervisorMessage::*;
+
         match self.strategy {
             SupervisionStrategy::OneForOne => {
                 match self.start_child_by_index(index).await {
@@ -550,10 +552,7 @@ impl Supervisor {
 
                         self.children[index].restarting = true;
 
-                        Supervisor::cast(
-                            Process::current(),
-                            SupervisorMessage::TryAgainRestartId(id),
-                        );
+                        Supervisor::cast(Process::current(), TryAgainRestartId(id));
                     }
                 };
             }
@@ -566,7 +565,7 @@ impl Supervisor {
 
                     self.children[index].restarting = true;
 
-                    Supervisor::cast(Process::current(), SupervisorMessage::TryAgainRestartId(id));
+                    Supervisor::cast(Process::current(), TryAgainRestartId(id));
                 }
             }
             SupervisionStrategy::OneForAll => {
@@ -578,7 +577,7 @@ impl Supervisor {
 
                     self.children[index].restarting = true;
 
-                    Supervisor::cast(Process::current(), SupervisorMessage::TryAgainRestartId(id));
+                    Supervisor::cast(Process::current(), TryAgainRestartId(id));
                 }
             }
         }
@@ -860,13 +859,15 @@ impl GenServer for Supervisor {
     }
 
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
+        use SupervisorMessage::*;
+
         match message {
-            SupervisorMessage::TryAgainRestartPid(pid) => {
+            TryAgainRestartPid(pid) => {
                 if let Some(index) = self.find_child(pid) {
                     return self.try_again_restart(index).await;
                 }
             }
-            SupervisorMessage::TryAgainRestartId(id) => {
+            TryAgainRestartId(id) => {
                 if let Some(index) = self.find_child_id(&id) {
                     return self.try_again_restart(index).await;
                 }
@@ -882,40 +883,34 @@ impl GenServer for Supervisor {
         message: Self::Message,
         _from: From,
     ) -> Result<Option<Self::Message>, ExitReason> {
+        use SupervisorMessage::*;
+
         match message {
-            SupervisorMessage::CountChildren => {
+            CountChildren => {
                 let counts = self.count_all_children();
 
-                Ok(Some(SupervisorMessage::CountChildrenSuccess(counts)))
+                Ok(Some(CountChildrenSuccess(counts)))
             }
-            SupervisorMessage::StartChild(spec) => {
-                match self.start_new_child(spec.into_inner()).await {
-                    Ok(pid) => Ok(Some(SupervisorMessage::StartChildSuccess(pid))),
-                    Err(error) => Ok(Some(SupervisorMessage::StartChildError(error))),
-                }
-            }
-            SupervisorMessage::TerminateChild(child_id) => {
-                match self.terminate_child_by_id(child_id).await {
-                    Ok(()) => Ok(Some(SupervisorMessage::TerminateChildSuccess)),
-                    Err(error) => Ok(Some(SupervisorMessage::TerminateChildError(error))),
-                }
-            }
-            SupervisorMessage::RestartChild(child_id) => {
-                match self.restart_child_by_id(child_id).await {
-                    Ok(pid) => Ok(Some(SupervisorMessage::RestartChildSuccess(pid))),
-                    Err(error) => Ok(Some(SupervisorMessage::RestartChildError(error))),
-                }
-            }
-            SupervisorMessage::DeleteChild(child_id) => {
-                match self.delete_child_by_id(child_id).await {
-                    Ok(()) => Ok(Some(SupervisorMessage::DeleteChildSuccess)),
-                    Err(error) => Ok(Some(SupervisorMessage::DeleteChildError(error))),
-                }
-            }
-            SupervisorMessage::WhichChildren => {
+            StartChild(spec) => match self.start_new_child(spec.into_inner()).await {
+                Ok(pid) => Ok(Some(StartChildSuccess(pid))),
+                Err(error) => Ok(Some(StartChildError(error))),
+            },
+            TerminateChild(child_id) => match self.terminate_child_by_id(child_id).await {
+                Ok(()) => Ok(Some(TerminateChildSuccess)),
+                Err(error) => Ok(Some(TerminateChildError(error))),
+            },
+            RestartChild(child_id) => match self.restart_child_by_id(child_id).await {
+                Ok(pid) => Ok(Some(RestartChildSuccess(pid))),
+                Err(error) => Ok(Some(RestartChildError(error))),
+            },
+            DeleteChild(child_id) => match self.delete_child_by_id(child_id).await {
+                Ok(()) => Ok(Some(DeleteChildSuccess)),
+                Err(error) => Ok(Some(DeleteChildError(error))),
+            },
+            WhichChildren => {
                 let children = self.which_children_info();
 
-                Ok(Some(SupervisorMessage::WhichChildrenSuccess(children)))
+                Ok(Some(WhichChildrenSuccess(children)))
             }
             _ => unreachable!(),
         }
