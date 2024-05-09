@@ -174,9 +174,9 @@ impl Process {
         });
     }
 
-    /// Creates a receiver with optional filtering for a single message from the current processes mailbox.
+    /// Creates a receiver with advanced filtering options from the current processes mailbox.
     #[must_use]
-    pub fn receiver() -> ProcessReceiver {
+    pub fn receiver() -> ProcessReceiver<()> {
         ProcessReceiver::new()
     }
 
@@ -185,7 +185,10 @@ impl Process {
     /// This will panic if a message is received that doesn't match the given type.
     #[must_use]
     pub async fn receive<T: Receivable>() -> Message<T> {
-        ProcessReceiver::new().receive().await
+        ProcessReceiver::new()
+            .strict_type_checking()
+            .receive()
+            .await
     }
 
     /// Spawns the given `function` as a process and returns it's [Pid].

@@ -156,16 +156,8 @@ pub trait GenServer: Sized + Send + 'static {
             );
 
             let receiver = Process::receiver()
-                .ignore_type()
-                .select::<GenServerMessage<Self::Message>, _>(|message| {
-                    match message {
-                        Message::System(SystemMessage::ProcessDown(_, tag, _)) => {
-                            // Make sure the tag matches the monitor.
-                            *tag == monitor
-                        }
-                        _ => false,
-                    }
-                });
+                .for_message::<GenServerMessage<Self::Message>>()
+                .select(|message| matches!(message, Message::System(SystemMessage::ProcessDown(_, tag, _)) if *tag == monitor));
 
             let result = match timeout {
                 Some(duration) => Process::timeout(duration, receiver).await,
@@ -229,8 +221,8 @@ pub trait GenServer: Sized + Send + 'static {
             Process::send(server, GenServerMessage::Call(from, message));
 
             let receiver = Process::receiver()
-                .ignore_type()
-                .select::<GenServerMessage<Self::Message>, _>(|message| {
+                .for_message::<GenServerMessage<Self::Message>>()
+                .select(|message| {
                     match message {
                         Message::User(GenServerMessage::CallReply(tag, _)) => {
                             // Make sure the tag matches the monitor.
@@ -261,16 +253,8 @@ pub trait GenServer: Sized + Send + 'static {
 
                     // Drop a stale reply that may already be in the process message inbox.
                     Process::receiver()
-                        .ignore_type()
-                        .drop::<GenServerMessage<Self::Message>, _>(|message| {
-                            match message {
-                                Message::User(GenServerMessage::CallReply(tag, _)) => {
-                                    // Make sure the tag matches the monitor.
-                                    *tag == monitor
-                                }
-                                _ => false,
-                            }
-                        });
+                        .for_message::<GenServerMessage<Self::Message>>()
+                        .remove(|message| matches!(message, Message::User(GenServerMessage::CallReply(tag, _)) if *tag == monitor));
 
                     Err(CallError::Timeout(timeout))
                 }

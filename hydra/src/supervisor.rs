@@ -844,6 +844,12 @@ impl SupervisedChild {
     }
 }
 
+impl Default for Supervisor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GenServer for Supervisor {
     type Message = SupervisorMessage;
 
@@ -947,8 +953,8 @@ async fn shutdown_brutal_kill(pid: Pid, monitor: Reference) -> Result<(), ExitRe
     Process::exit(pid, ExitReason::Kill);
 
     let result = Process::receiver()
-        .ignore_type()
-        .select::<(), _>(|message| {
+        .for_message::<()>()
+        .select(|message| {
             match message {
                 Message::System(SystemMessage::ProcessDown(_, tag, _)) => {
                     // Make sure that the tag matches.
@@ -978,16 +984,7 @@ async fn shutdown_timeout(
     Process::exit(pid, ExitReason::from("shutdown"));
 
     let receiver = Process::receiver()
-        .ignore_type()
-        .select::<(), _>(|message| {
-            match message {
-                Message::System(SystemMessage::ProcessDown(_, tag, _)) => {
-                    // Make sure that the tag matches.
-                    *tag == monitor
-                }
-                _ => false,
-            }
-        });
+                        .select(|message| matches!(message, Message::System(SystemMessage::ProcessDown(_, tag, _)) if *tag == monitor));
 
     let result = Process::timeout(timeout, receiver).await;
 
@@ -1007,17 +1004,8 @@ async fn shutdown_infinity(pid: Pid, monitor: Reference) -> Result<(), ExitReaso
     Process::exit(pid, ExitReason::from("shutdown"));
 
     let result = Process::receiver()
-        .ignore_type()
-        .select::<(), _>(|message| {
-            match message {
-                Message::System(SystemMessage::ProcessDown(_, tag, _)) => {
-                    // Make sure that the tag matches.
-                    *tag == monitor
-                }
-                _ => false,
-            }
-        })
-        .await;
+                    .select(|message| matches!(message, Message::System(SystemMessage::ProcessDown(_, tag, _)) if *tag == monitor))
+                    .await;
 
     let Message::System(SystemMessage::ProcessDown(_, _, reason)) = result else {
         unreachable!()
@@ -1036,19 +1024,17 @@ fn unlink_flush(pid: Pid, default_reason: ExitReason) -> ExitReason {
 
     let mut reason = default_reason;
 
-    Process::receiver()
-        .ignore_type()
-        .drop::<(), _>(|message| match message {
-            Message::System(SystemMessage::Exit(epid, ereason)) => {
-                if *epid == pid {
-                    reason = ereason.clone();
-                    return true;
-                }
-
-                false
+    Process::receiver().remove(|message| match message {
+        Message::System(SystemMessage::Exit(epid, ereason)) => {
+            if *epid == pid {
+                reason = ereason.clone();
+                return true;
             }
-            _ => false,
-        });
+
+            false
+        }
+        _ => false,
+    });
 
     reason
 }
