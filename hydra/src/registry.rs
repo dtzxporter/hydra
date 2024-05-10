@@ -11,9 +11,11 @@ use serde::Serialize;
 
 use crate::ExitReason;
 use crate::GenServer;
+use crate::Message;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
+use crate::SystemMessage;
 
 static REGISTRY: Lazy<DashMap<String, DashMap<RegistryKey, Pid>>> = Lazy::new(DashMap::new);
 
@@ -47,7 +49,28 @@ pub struct Registry {
 }
 
 impl Registry {
-    //
+    /// Constructs a new local [Registry] with the given name.
+    ///
+    /// Names must be unique on a per-node basis.
+    pub fn new<T: Into<String>>(name: T) -> Self {
+        Self {
+            name: name.into(),
+            start: None,
+            lookup: BTreeMap::new(),
+        }
+    }
+
+    /// Removes the process from the registry.
+    fn remove_process(&mut self, pid: Pid) {
+        let Some(key) = self.lookup.remove(&pid) else {
+            return;
+        };
+
+        REGISTRY.alter(&self.name, |_, value| {
+            value.remove_if(&key, |_, value| *value == pid);
+            value
+        });
+    }
 }
 
 impl GenServer for Registry {
@@ -57,6 +80,16 @@ impl GenServer for Registry {
         Process::set_flags(ProcessFlags::TRAP_EXIT);
 
         Ok(())
+    }
+
+    async fn handle_info(&mut self, info: Message<Self::Message>) -> Result<(), ExitReason> {
+        match info {
+            Message::System(SystemMessage::Exit(pid, _)) => {
+                self.remove_process(pid);
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 }
 
