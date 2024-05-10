@@ -1,3 +1,7 @@
+use std::collections::BTreeMap;
+use std::future::Future;
+use std::sync::Arc;
+
 use dashmap::DashMap;
 
 use once_cell::sync::Lazy;
@@ -8,6 +12,8 @@ use serde::Serialize;
 use crate::ExitReason;
 use crate::GenServer;
 use crate::Pid;
+use crate::Process;
+use crate::ProcessFlags;
 
 static REGISTRY: Lazy<DashMap<String, DashMap<RegistryKey, Pid>>> = Lazy::new(DashMap::new);
 
@@ -29,6 +35,15 @@ pub enum RegistryMessage {
 
 pub struct Registry {
     name: String,
+    #[allow(clippy::type_complexity)]
+    start: Option<
+        Arc<
+            dyn Fn() -> Box<dyn Future<Output = Result<Pid, ExitReason>> + Send + Sync>
+                + Send
+                + Sync,
+        >,
+    >,
+    lookup: BTreeMap<Pid, RegistryKey>,
 }
 
 impl Registry {
@@ -39,6 +54,44 @@ impl GenServer for Registry {
     type Message = RegistryMessage;
 
     async fn init(&mut self) -> Result<(), ExitReason> {
+        Process::set_flags(ProcessFlags::TRAP_EXIT);
+
         Ok(())
+    }
+}
+
+impl From<i32> for RegistryKey {
+    fn from(value: i32) -> Self {
+        Self::I32(value)
+    }
+}
+
+impl From<i64> for RegistryKey {
+    fn from(value: i64) -> Self {
+        Self::I64(value)
+    }
+}
+
+impl From<u32> for RegistryKey {
+    fn from(value: u32) -> Self {
+        Self::U32(value)
+    }
+}
+
+impl From<u64> for RegistryKey {
+    fn from(value: u64) -> Self {
+        Self::U64(value)
+    }
+}
+
+impl From<String> for RegistryKey {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<&str> for RegistryKey {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
     }
 }
