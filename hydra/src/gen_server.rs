@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use crate::CallError;
 use crate::Dest;
+use crate::Dests;
 use crate::ExitReason;
 use crate::From;
 use crate::GenServerOptions;
@@ -182,18 +183,22 @@ pub trait GenServer: Sized + Send + 'static {
         }
     }
 
-    /// Casts a request to the `server` without waiting for a response.
+    /// Casts a request to the `servers` without waiting for a response.
     ///
     /// It is unknown whether the destination server successfully handled the request.
-    fn cast<T: Into<Dest>>(server: T, message: Self::Message) {
-        Process::send(server, GenServerMessage::Cast(message));
+    ///
+    /// See [Process::send] for performance trade-offs.
+    fn cast<T: Into<Dests>>(servers: T, message: Self::Message) {
+        Process::send(servers, GenServerMessage::Cast(message));
     }
 
-    /// Casts a request to the `server` after the given `duration` without waiting for a response.
+    /// Casts a request to the `servers` after the given `duration` without waiting for a response.
     ///
     /// It is unknown whether the destination server successfully handled the request.
-    fn cast_after<T: Into<Dest>>(server: T, message: Self::Message, duration: Duration) {
-        Process::send_after(server, GenServerMessage::Cast(message), duration);
+    ///
+    /// See [Process::send] for performance trade-offs.
+    fn cast_after<T: Into<Dests>>(servers: T, message: Self::Message, duration: Duration) {
+        Process::send_after(servers, GenServerMessage::Cast(message), duration);
     }
 
     /// Makes a synchronous call to the `server` and waits for it's reply.

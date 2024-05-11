@@ -17,23 +17,30 @@ use crate::Receivable;
 use crate::Reference;
 
 /// Forwards an incoming nodes send frame message to the target if it exists.
-pub fn node_forward_send(send: Send) {
-    match send.target {
-        SendTarget::Pid(id) => {
-            process_sender(Pid::local(id.get()))
-                .map(|sender| sender.send(ProcessItem::UserRemoteMessage(send.message)));
-        }
-        SendTarget::Named(name) => {
-            process_name_lookup(&name)
-                .and_then(process_sender)
-                .map(|sender| sender.send(ProcessItem::UserRemoteMessage(send.message)));
-        }
-        SendTarget::Alias(alias) => {
-            alias_retrieve(Reference::Local(alias)).map(|alias| {
-                alias
-                    .sender
-                    .send(ProcessItem::UserRemoteMessage(send.message))
-            });
+pub fn node_forward_send(mut send: Send) {
+    let is_single_target = send.targets.len() == 1;
+
+    for target in send.targets {
+        let message = if is_single_target {
+            std::mem::take(&mut send.message)
+        } else {
+            send.message.clone()
+        };
+
+        match target {
+            SendTarget::Pid(id) => {
+                process_sender(Pid::local(id.get()))
+                    .map(|sender| sender.send(ProcessItem::UserRemoteMessage(message)));
+            }
+            SendTarget::Named(name) => {
+                process_name_lookup(&name)
+                    .and_then(process_sender)
+                    .map(|sender| sender.send(ProcessItem::UserRemoteMessage(message)));
+            }
+            SendTarget::Alias(alias) => {
+                alias_retrieve(Reference::Local(alias))
+                    .map(|alias| alias.sender.send(ProcessItem::UserRemoteMessage(message)));
+            }
         }
     }
 }

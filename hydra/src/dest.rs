@@ -18,6 +18,15 @@ pub enum Dest {
     Alias(Reference),
 }
 
+/// One or more process destinations.
+#[derive(Debug)]
+pub enum Dests {
+    /// A single process destination.
+    Dest(Dest),
+    /// Mutiple process destinations.
+    Dests(Vec<Dest>),
+}
+
 impl Dest {
     /// Returns `true` if the [Dest] is for a local process.
     pub const fn is_local(&self) -> bool {
@@ -122,5 +131,36 @@ impl PartialEq<Dest> for Reference {
             Dest::Alias(reference) => reference == other,
             _ => false,
         }
+    }
+}
+
+impl<T> From<T> for Dests
+where
+    T: Into<Dest>,
+{
+    fn from(value: T) -> Self {
+        Self::Dest(value.into())
+    }
+}
+
+impl From<&[Dest]> for Dests {
+    fn from(value: &[Dest]) -> Self {
+        if value.len() == 1 {
+            Self::Dest(value[0].to_owned())
+        } else {
+            Self::Dests(Vec::from(value))
+        }
+    }
+}
+
+impl From<Vec<Dest>> for Dests {
+    fn from(value: Vec<Dest>) -> Self {
+        Self::Dests(value)
+    }
+}
+
+impl FromIterator<Dest> for Dests {
+    fn from_iter<T: IntoIterator<Item = Dest>>(iter: T) -> Self {
+        Self::Dests(Vec::from_iter(iter))
     }
 }
