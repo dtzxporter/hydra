@@ -134,12 +134,52 @@ impl PartialEq<Dest> for Reference {
     }
 }
 
-impl<T> From<T> for Dests
+impl From<Pid> for Dests {
+    fn from(value: Pid) -> Self {
+        Self::Dest(Dest::from(value))
+    }
+}
+
+impl From<Reference> for Dests {
+    fn from(value: Reference) -> Self {
+        Self::Dest(Dest::from(value))
+    }
+}
+
+impl From<&'static str> for Dests {
+    fn from(value: &'static str) -> Self {
+        Self::Dest(Dest::Named(value.into(), Node::Local))
+    }
+}
+
+impl<T> From<(&'static str, T)> for Dests
 where
-    T: Into<Dest>,
+    T: Into<Node>,
 {
-    fn from(value: T) -> Self {
-        Self::Dest(value.into())
+    fn from(value: (&'static str, T)) -> Self {
+        Self::Dest(Dest::Named(value.0.into(), value.1.into()))
+    }
+}
+
+impl From<String> for Dests {
+    fn from(value: String) -> Self {
+        Self::Dest(Dest::Named(value.into(), Node::Local))
+    }
+}
+
+impl From<&[Pid]> for Dests {
+    fn from(value: &[Pid]) -> Self {
+        if value.len() == 1 {
+            Self::Dest(Dest::from(value[0]))
+        } else {
+            Self::Dests(value.iter().copied().map(Into::into).collect())
+        }
+    }
+}
+
+impl From<Dest> for Dests {
+    fn from(value: Dest) -> Self {
+        Self::Dest(value)
     }
 }
 
@@ -159,8 +199,26 @@ impl From<Vec<Dest>> for Dests {
     }
 }
 
+impl From<Vec<Pid>> for Dests {
+    fn from(value: Vec<Pid>) -> Self {
+        Self::Dests(value.into_iter().map(Into::into).collect())
+    }
+}
+
+impl From<&Vec<Pid>> for Dests {
+    fn from(value: &Vec<Pid>) -> Self {
+        Self::Dests(value.iter().copied().map(Into::into).collect())
+    }
+}
+
 impl FromIterator<Dest> for Dests {
     fn from_iter<T: IntoIterator<Item = Dest>>(iter: T) -> Self {
         Self::Dests(Vec::from_iter(iter))
+    }
+}
+
+impl FromIterator<Pid> for Dests {
+    fn from_iter<T: IntoIterator<Item = Pid>>(iter: T) -> Self {
+        Self::Dests(Vec::from_iter(iter.into_iter().map(Into::into)))
     }
 }
