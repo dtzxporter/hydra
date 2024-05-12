@@ -19,6 +19,8 @@ use crate::SystemMessage;
 
 static REGISTRY: Lazy<DashMap<String, DashMap<RegistryKey, Pid>>> = Lazy::new(DashMap::new);
 
+/// A registry key.
+#[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RegistryKey {
     I32(i32),
