@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::ExitReason;
+use crate::From;
 use crate::GenServer;
 use crate::Message;
 use crate::Pid;
@@ -17,6 +18,7 @@ use crate::Process;
 use crate::ProcessFlags;
 use crate::SystemMessage;
 
+/// A local collection of active process registries.
 static REGISTRY: Lazy<DashMap<String, DashMap<RegistryKey, Pid>>> = Lazy::new(DashMap::new);
 
 /// A registry key.
@@ -34,7 +36,7 @@ pub enum RegistryKey {
 #[doc(hidden)]
 #[derive(Serialize, Deserialize)]
 pub enum RegistryMessage {
-    //
+    LookupOrStart(RegistryKey),
 }
 
 pub struct Registry {
@@ -84,6 +86,16 @@ impl GenServer for Registry {
         Ok(())
     }
 
+    async fn handle_call(
+        &mut self,
+        message: Self::Message,
+        _from: From,
+    ) -> Result<Option<Self::Message>, ExitReason> {
+        use RegistryMessage::*;
+
+        panic!()
+    }
+
     async fn handle_info(&mut self, info: Message<Self::Message>) -> Result<(), ExitReason> {
         match info {
             Message::System(SystemMessage::Exit(pid, _)) => {
@@ -95,37 +107,37 @@ impl GenServer for Registry {
     }
 }
 
-impl From<i32> for RegistryKey {
+impl std::convert::From<i32> for RegistryKey {
     fn from(value: i32) -> Self {
         Self::I32(value)
     }
 }
 
-impl From<i64> for RegistryKey {
+impl std::convert::From<i64> for RegistryKey {
     fn from(value: i64) -> Self {
         Self::I64(value)
     }
 }
 
-impl From<u32> for RegistryKey {
+impl std::convert::From<u32> for RegistryKey {
     fn from(value: u32) -> Self {
         Self::U32(value)
     }
 }
 
-impl From<u64> for RegistryKey {
+impl std::convert::From<u64> for RegistryKey {
     fn from(value: u64) -> Self {
         Self::U64(value)
     }
 }
 
-impl From<String> for RegistryKey {
+impl std::convert::From<String> for RegistryKey {
     fn from(value: String) -> Self {
         Self::String(value)
     }
 }
 
-impl From<&str> for RegistryKey {
+impl std::convert::From<&str> for RegistryKey {
     fn from(value: &str) -> Self {
         Self::String(value.to_owned())
     }
