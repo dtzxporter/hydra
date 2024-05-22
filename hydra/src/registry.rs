@@ -64,6 +64,8 @@ pub enum RegistryMessage {
     StopError(RegistryError),
     Count,
     CountSuccess(usize),
+    List,
+    ListSuccess(Vec<(RegistryKey, Pid)>),
     Remove(RegistryKey),
     RemoveSuccess(Option<Pid>),
     RemoveLookup(Pid),
@@ -220,6 +222,24 @@ impl Registry {
 
         match Registry::call(registry, Count, None).await? {
             CountSuccess(count) => Ok(count),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Returns a list of every process registered to the given `registry`.
+    pub async fn list<T: Into<Dest>>(
+        registry: T,
+    ) -> Result<Vec<(RegistryKey, Pid)>, RegistryError> {
+        use RegistryMessage::*;
+
+        let registry = registry.into();
+
+        if let Dest::Named(registry, Node::Local) = &registry {
+            return Ok(list_processes(registry));
+        }
+
+        match Registry::call(registry, List, None).await? {
+            ListSuccess(list) => Ok(list),
             _ => unreachable!(),
         }
     }
@@ -423,6 +443,11 @@ impl GenServer for Registry {
 
                 Ok(Some(CountSuccess(count)))
             }
+            List => {
+                let list = list_processes(&self.name);
+
+                Ok(Some(ListSuccess(list)))
+            }
             Remove(key) => {
                 let removed = self.remove_by_key(key);
 
@@ -516,6 +541,19 @@ fn count_processes<T: AsRef<str>>(registry: T) -> usize {
     REGISTRY
         .get(registry.as_ref())
         .map(|registry| registry.len())
+        .unwrap_or_default()
+}
+
+/// Lists all of the processes in a registry.
+fn list_processes<T: AsRef<str>>(registry: T) -> Vec<(RegistryKey, Pid)> {
+    REGISTRY
+        .get(registry.as_ref())
+        .map(|registry| {
+            registry
+                .iter()
+                .map(|entry| (entry.key().clone(), *entry.value()))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
