@@ -47,6 +47,14 @@ pub enum RegistryMessage {
     LookupOrStart(RegistryKey),
     LookupOrStartSuccess(Pid),
     LookupOrStartError(RegistryError),
+    Start(RegistryKey),
+    StartSuccess(Pid),
+    StartError(RegistryError),
+    Stop(RegistryKey),
+    StopSuccess,
+    StopError(RegistryError),
+    Count,
+    CountSuccess(usize),
 }
 
 /// Errors for [Registry] calls.
@@ -59,7 +67,9 @@ pub enum RegistryError {
     /// The registry wasn't configured with a start routine.
     StartNotSupported,
     /// The process is already registered and running.
-    AlreadyStarted,
+    AlreadyStarted(Pid),
+    /// The process was not found for the given key.
+    NotFound,
 }
 
 pub struct Registry {
@@ -134,10 +144,69 @@ impl Registry {
         }
     }
 
+    /// Attempts to start a process.
+    ///
+    /// If the process is already running, an error is returned.
+    pub async fn start<T: Into<Dest>, N: Into<RegistryKey>>(
+        registry: T,
+        key: N,
+    ) -> Result<Pid, RegistryError> {
+        use RegistryMessage::*;
+
+        match Registry::call(registry, Start(key.into()), None).await? {
+            StartSuccess(pid) => Ok(pid),
+            StartError(error) => Err(error),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Stops a process registered in the given `registry` with the given `key`.
+    ///
+    /// If the process is trapping exits, it will still run, but be unregistered from this registry.
+    ///
+    /// If the process is not registered an error is returned.
+    pub async fn stop<T: Into<Dest>, N: Into<RegistryKey>>(
+        registry: T,
+        key: N,
+    ) -> Result<(), RegistryError> {
+        use RegistryMessage::*;
+
+        match Registry::call(registry, Stop(key.into()), None).await? {
+            StopSuccess => Ok(()),
+            StopError(error) => Err(error),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Returns the number of registered processes for the given `registry`.
+    pub async fn count<T: Into<Dest>>(registry: T) -> Result<usize, RegistryError> {
+        use RegistryMessage::*;
+
+        let registry = registry.into();
+
+        if let Dest::Named(registry, Node::Local) = &registry {
+            return Ok(count_processes(registry));
+        }
+
+        match Registry::call(registry, Count, None).await? {
+            CountSuccess(count) => Ok(count),
+            _ => unreachable!(),
+        }
+    }
+
     /// Looks up, or starts a process by the given key.
     async fn lookup_or_start_by_key(&mut self, key: RegistryKey) -> Result<Pid, RegistryError> {
         if let Some(result) = lookup_process(&self.name, &key) {
             return Ok(result);
+        }
+
+        self.start_by_key(key).await
+    }
+
+    /// Starts a process if one doesn't exist.
+    async fn start_by_key(&mut self, key: RegistryKey) -> Result<Pid, RegistryError> {
+        if let Some(process) = lookup_process(&self.name, &key) {
+            return Err(RegistryError::AlreadyStarted(process));
         }
 
         let start_child = Pin::from(self.start.as_ref().unwrap()(key.clone())).await;
@@ -145,7 +214,7 @@ impl Registry {
         match start_child {
             Ok(pid) => {
                 #[cfg(feature = "tracing")]
-                tracing::info!(child_name = ?key, child_pid = ?pid, "Started registered process");
+                tracing::info!(child_key = ?key, child_pid = ?pid, "Started registered process");
 
                 self.lookup.insert(pid, key.clone());
 
@@ -155,11 +224,27 @@ impl Registry {
             }
             Err(reason) => {
                 #[cfg(feature = "tracing")]
-                tracing::error!(reason = ?reason, child_name = ?key, "Start registered process error");
+                tracing::error!(reason = ?reason, child_key = ?key, "Start registered process error");
 
                 Err(RegistryError::StartError(reason))
             }
         }
+    }
+
+    /// Stops a process by the given key.
+    fn stop_by_key(&mut self, key: RegistryKey) -> Result<(), RegistryError> {
+        let Some(process) = lookup_process(&self.name, &key) else {
+            return Err(RegistryError::NotFound);
+        };
+
+        Process::unlink(process);
+        Process::exit(process, ExitReason::from("shutdown"));
+
+        self.lookup.remove(&process);
+
+        remove_process(&self.name, &key);
+
+        Ok(())
     }
 
     /// Looks up a process by the given key.
@@ -168,10 +253,13 @@ impl Registry {
     }
 
     /// Removes the process from the registry.
-    fn remove_process(&mut self, pid: Pid) {
+    fn remove_process(&mut self, pid: Pid, reason: Option<ExitReason>) {
         let Some(key) = self.lookup.remove(&pid) else {
             return;
         };
+
+        #[cfg(feature = "tracing")]
+        tracing::info!(reason = ?reason, child_key = ?key, child_pid = ?pid, "Removed registered process");
 
         REGISTRY.alter(&self.name, |_, value| {
             value.remove_if(&key, |_, value| *value == pid);
@@ -206,14 +294,27 @@ impl GenServer for Registry {
                 Ok(pid) => Ok(Some(LookupOrStartSuccess(pid))),
                 Err(error) => Ok(Some(LookupOrStartError(error))),
             },
+            Start(key) => match self.start_by_key(key).await {
+                Ok(pid) => Ok(Some(StartSuccess(pid))),
+                Err(error) => Ok(Some(StartError(error))),
+            },
+            Stop(key) => match self.stop_by_key(key) {
+                Ok(()) => Ok(Some(StopSuccess)),
+                Err(error) => Ok(Some(StopError(error))),
+            },
+            Count => {
+                let count = count_processes(&self.name);
+
+                Ok(Some(CountSuccess(count)))
+            }
             _ => unreachable!(),
         }
     }
 
     async fn handle_info(&mut self, info: Message<Self::Message>) -> Result<(), ExitReason> {
         match info {
-            Message::System(SystemMessage::Exit(pid, _)) => {
-                self.remove_process(pid);
+            Message::System(SystemMessage::Exit(pid, reason)) => {
+                self.remove_process(pid, Some(reason));
                 Ok(())
             }
             _ => Ok(()),
@@ -280,6 +381,21 @@ fn lookup_process<T: AsRef<str>>(registry: T, key: &RegistryKey) -> Option<Pid> 
     REGISTRY
         .get(registry.as_ref())
         .and_then(|registry| registry.get(key).map(|entry| *entry.value()))
+}
+
+/// Removes a process in the given registry assigned to the given key.
+fn remove_process<T: AsRef<str>>(registry: T, key: &RegistryKey) -> Option<Pid> {
+    REGISTRY
+        .get_mut(registry.as_ref())
+        .and_then(|registry| registry.remove(key).map(|entry| entry.1))
+}
+
+/// Counts the number of processes in a registry.
+fn count_processes<T: AsRef<str>>(registry: T) -> usize {
+    REGISTRY
+        .get(registry.as_ref())
+        .map(|registry| registry.len())
+        .unwrap_or_default()
 }
 
 /// Registers the given process in the local registry with the given key.
