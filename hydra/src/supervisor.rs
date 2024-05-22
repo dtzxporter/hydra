@@ -215,11 +215,11 @@ impl Supervisor {
 
     /// Returns [SupervisorCounts] containing the counts for each of the different child specifications.
     pub async fn count_children<T: Into<Dest>>(
-        server: T,
+        supervisor: T,
     ) -> Result<SupervisorCounts, SupervisorError> {
         use SupervisorMessage::*;
 
-        match Supervisor::call(server, CountChildren, None).await? {
+        match Supervisor::call(supervisor, CountChildren, None).await? {
             CountChildrenSuccess(counts) => Ok(counts),
             _ => unreachable!(),
         }
@@ -227,12 +227,12 @@ impl Supervisor {
 
     /// Adds the child specification to the [Supervisor] and starts that child.
     pub async fn start_child<T: Into<Dest>>(
-        server: T,
+        supervisor: T,
         child: ChildSpec,
     ) -> Result<Option<Pid>, SupervisorError> {
         use SupervisorMessage::*;
 
-        match Supervisor::call(server, StartChild(Local::new(child)), None).await? {
+        match Supervisor::call(supervisor, StartChild(Local::new(child)), None).await? {
             StartChildSuccess(pid) => Ok(pid),
             StartChildError(error) => Err(error),
             _ => unreachable!(),
@@ -247,12 +247,12 @@ impl Supervisor {
     ///
     /// The child process can also be restarted explicitly by calling `restart_child`. Use `delete_child` to remove the child specification.
     pub async fn terminate_child<T: Into<Dest>, I: Into<String>>(
-        server: T,
+        supervisor: T,
         child_id: I,
     ) -> Result<(), SupervisorError> {
         use SupervisorMessage::*;
 
-        match Supervisor::call(server, TerminateChild(child_id.into()), None).await? {
+        match Supervisor::call(supervisor, TerminateChild(child_id.into()), None).await? {
             TerminateChildSuccess => Ok(()),
             TerminateChildError(error) => Err(error),
             _ => unreachable!(),
@@ -266,12 +266,12 @@ impl Supervisor {
     /// Note that for temporary children, the child specification is automatically deleted when the child terminates,
     /// and thus it is not possible to restart such children.
     pub async fn restart_child<T: Into<Dest>, I: Into<String>>(
-        server: T,
+        supervisor: T,
         child_id: I,
     ) -> Result<Option<Pid>, SupervisorError> {
         use SupervisorMessage::*;
 
-        match Supervisor::call(server, RestartChild(child_id.into()), None).await? {
+        match Supervisor::call(supervisor, RestartChild(child_id.into()), None).await? {
             RestartChildSuccess(pid) => Ok(pid),
             RestartChildError(error) => Err(error),
             _ => unreachable!(),
@@ -282,12 +282,12 @@ impl Supervisor {
     ///
     /// The corrosponding child process must not be running, use `terminate_child` to terminate it if it's running.
     pub async fn delete_child<T: Into<Dest>, I: Into<String>>(
-        server: T,
+        supervisor: T,
         child_id: I,
     ) -> Result<(), SupervisorError> {
         use SupervisorMessage::*;
 
-        match Supervisor::call(server, DeleteChild(child_id.into()), None).await? {
+        match Supervisor::call(supervisor, DeleteChild(child_id.into()), None).await? {
             DeleteChildSuccess => Ok(()),
             DeleteChildError(error) => Err(error),
             _ => unreachable!(),
@@ -296,11 +296,11 @@ impl Supervisor {
 
     /// Returns a list with information about all children of the given [Supervisor].
     pub async fn which_children<T: Into<Dest>>(
-        server: T,
+        supervisor: T,
     ) -> Result<Vec<SupervisorChildInfo>, SupervisorError> {
         use SupervisorMessage::*;
 
-        match Supervisor::call(server, WhichChildren, None).await? {
+        match Supervisor::call(supervisor, WhichChildren, None).await? {
             WhichChildrenSuccess(info) => Ok(info),
             _ => unreachable!(),
         }
