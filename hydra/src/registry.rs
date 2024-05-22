@@ -64,6 +64,9 @@ pub enum RegistryMessage {
     StopError(RegistryError),
     Count,
     CountSuccess(usize),
+    Remove(RegistryKey),
+    RemoveSuccess(Option<Pid>),
+    RemoveLookup(Pid),
 }
 
 /// Errors for [Registry] calls.
@@ -221,6 +224,34 @@ impl Registry {
         }
     }
 
+    /// Removes a process registered in the given `registry` with the given `key`.
+    ///
+    /// The process will no longer be registered, but it will remain running if it was found.
+    pub async fn remove<T: Into<Dest>, N: Into<RegistryKey>>(
+        registry: T,
+        key: N,
+    ) -> Result<Option<Pid>, RegistryError> {
+        use RegistryMessage::*;
+
+        let registry = registry.into();
+        let key = key.into();
+
+        if let Dest::Named(registry, Node::Local) = &registry {
+            let Some(process) = remove_process(registry, &key) else {
+                return Ok(None);
+            };
+
+            Registry::cast(registry.to_string(), RemoveLookup(process));
+
+            return Ok(Some(process));
+        }
+
+        match Registry::call(registry, Remove(key), None).await? {
+            RemoveSuccess(pid) => Ok(pid),
+            _ => unreachable!(),
+        }
+    }
+
     /// Creates a registry process as part of a supervision tree.
     ///
     /// For example, this function ensures that the registry is linked to the calling process (its supervisor).
@@ -297,6 +328,17 @@ impl Registry {
         lookup_process(&self.name, &key)
     }
 
+    /// Removes a process by the given key.
+    fn remove_by_key(&mut self, key: RegistryKey) -> Option<Pid> {
+        let process = remove_process(&self.name, &key)?;
+
+        Process::unlink(process);
+
+        self.lookup.remove(&process);
+
+        Some(process)
+    }
+
     /// Removes the process from the registry.
     fn remove_process(&mut self, pid: Pid, reason: ExitReason) {
         let Some(key) = self.lookup.remove(&pid) else {
@@ -315,12 +357,16 @@ impl Registry {
 
 impl Drop for Registry {
     fn drop(&mut self) {
-        for process in self.lookup.keys() {
-            Process::unlink(*process);
-            Process::exit(*process, ExitReason::Kill);
-        }
+        let Some((_, registry)) = REGISTRY.remove(&self.name) else {
+            return;
+        };
 
-        REGISTRY.remove(&self.name);
+        for (process, key) in &self.lookup {
+            if registry.contains_key(key) {
+                Process::unlink(*process);
+                Process::exit(*process, ExitReason::Kill);
+            }
+        }
     }
 }
 
@@ -331,6 +377,20 @@ impl GenServer for Registry {
         Process::set_flags(ProcessFlags::TRAP_EXIT);
 
         Ok(())
+    }
+
+    async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
+        use RegistryMessage::*;
+
+        match message {
+            RemoveLookup(process) => {
+                Process::unlink(process);
+
+                self.lookup.remove(&process);
+                Ok(())
+            }
+            _ => unreachable!(),
+        }
     }
 
     async fn handle_call(
@@ -362,6 +422,11 @@ impl GenServer for Registry {
                 let count = count_processes(&self.name);
 
                 Ok(Some(CountSuccess(count)))
+            }
+            Remove(key) => {
+                let removed = self.remove_by_key(key);
+
+                Ok(Some(RemoveSuccess(removed)))
             }
             _ => unreachable!(),
         }
