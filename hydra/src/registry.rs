@@ -11,10 +11,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::CallError;
+use crate::ChildSpec;
+use crate::ChildType;
 use crate::Dest;
 use crate::ExitReason;
 use crate::From;
 use crate::GenServer;
+use crate::GenServerOptions;
 use crate::Message;
 use crate::Node;
 use crate::Pid;
@@ -26,15 +29,21 @@ use crate::SystemMessage;
 static REGISTRY: Lazy<DashMap<String, DashMap<RegistryKey, Pid>>> = Lazy::new(DashMap::new);
 
 /// A registry key.
-#[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RegistryKey {
+    /// A 32bit signed integer key.
     Integer32(i32),
+    /// A 64bit signed integer key.
     Integer64(i64),
+    /// A 128bit signed integer key.
     Integer128(i128),
+    /// A 32bit unsigned integer key.
     UInteger32(u32),
+    /// A 64bit unsigned integer key.
     UInteger64(u64),
+    /// A 128bit unsigned integer key.
     UInteger128(u128),
+    /// A string key.
     String(String),
 }
 
@@ -72,6 +81,10 @@ pub enum RegistryError {
     NotFound,
 }
 
+/// Provides a centralized 'registry' of processes using any value as a key.
+///
+/// A registry is designed to only support a single type of [Process] or [GenServer], you should use multiple if necessary.
+#[derive(Clone)]
 pub struct Registry {
     name: String,
     #[allow(clippy::type_complexity)]
@@ -95,6 +108,18 @@ impl Registry {
             start: None,
             lookup: BTreeMap::new(),
         }
+    }
+
+    /// Assigns a start routine for the registry to be able to dynamically spawn processes.
+    ///
+    /// Must return a future that resolves to [Result<Pid, ExitReason>].
+    pub fn with_start<T, F>(mut self, start: T) -> Self
+    where
+        T: Fn(RegistryKey) -> F + Send + Sync + 'static,
+        F: Future<Output = Result<Pid, ExitReason>> + Send + Sync + 'static,
+    {
+        self.start = Some(Arc::new(move |key| Box::new(start(key))));
+        self
     }
 
     /// Looks up a running process.
@@ -194,6 +219,24 @@ impl Registry {
         }
     }
 
+    /// Creates a registry process as part of a supervision tree.
+    ///
+    /// For example, this function ensures that the registry is linked to the calling process (its supervisor).
+    pub async fn start_link(self, mut options: GenServerOptions) -> Result<Pid, ExitReason> {
+        options = options.name(self.name.clone());
+
+        GenServer::start_link(self, options).await
+    }
+
+    /// Builds a child specification for this [Registry] process.
+    pub fn child_spec(self, mut options: GenServerOptions) -> ChildSpec {
+        options = options.name(self.name.clone());
+
+        ChildSpec::new("Registry")
+            .start(move || self.clone().start_link(options.clone()))
+            .child_type(ChildType::Worker)
+    }
+
     /// Looks up, or starts a process by the given key.
     async fn lookup_or_start_by_key(&mut self, key: RegistryKey) -> Result<Pid, RegistryError> {
         if let Some(result) = lookup_process(&self.name, &key) {
@@ -253,7 +296,7 @@ impl Registry {
     }
 
     /// Removes the process from the registry.
-    fn remove_process(&mut self, pid: Pid, reason: Option<ExitReason>) {
+    fn remove_process(&mut self, pid: Pid, reason: ExitReason) {
         let Some(key) = self.lookup.remove(&pid) else {
             return;
         };
@@ -314,7 +357,7 @@ impl GenServer for Registry {
     async fn handle_info(&mut self, info: Message<Self::Message>) -> Result<(), ExitReason> {
         match info {
             Message::System(SystemMessage::Exit(pid, reason)) => {
-                self.remove_process(pid, Some(reason));
+                self.remove_process(pid, reason);
                 Ok(())
             }
             _ => Ok(()),
