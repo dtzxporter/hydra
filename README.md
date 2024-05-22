@@ -28,6 +28,7 @@ Hydra runs on the [Tokio](https://github.com/tokio-rs/tokio) runtime, known for 
 - **Process**: A light weight task that supports sending and receiving messages.
 - **GenServer**: A generic server process that provides request/reply and state management.
 - **Supervisor**: A process which supervises other processes, used to provide fault-tolerance and encapsulate how our applications start and shutdown (gracefully).
+- **Registry**: A process which acts as a centralized 'registry' of processes allowing you to lookup running processes by any key.
 - **Node**: A mechanism to connect multiple nodes (instances) of Hydra together and monitor those connections.
 
 ## Example

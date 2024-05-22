@@ -13,7 +13,6 @@ use flume::Sender;
 use crate::alias_create;
 use crate::alias_destroy;
 use crate::alias_destroy_all;
-use crate::alias_retrieve;
 use crate::link_create;
 use crate::link_destroy;
 use crate::link_install;
@@ -24,9 +23,6 @@ use crate::monitor_destroy_all;
 use crate::monitor_install;
 use crate::monitor_process_down;
 use crate::node_process_send_exit;
-use crate::node_process_send_with_alias;
-use crate::node_process_send_with_name;
-use crate::node_process_send_with_pid;
 use crate::process_alive;
 use crate::process_drop;
 use crate::process_exit;
@@ -37,13 +33,14 @@ use crate::process_name_list;
 use crate::process_name_lookup;
 use crate::process_name_remove;
 use crate::process_register;
-use crate::process_sender;
+use crate::process_send;
 use crate::process_set_exit_reason;
 use crate::process_set_flags;
 use crate::process_unregister;
 use crate::ArgumentError;
 use crate::AsyncCatchUnwind;
 use crate::Dest;
+use crate::Dests;
 use crate::ExitReason;
 use crate::Message;
 use crate::Pid;
@@ -132,40 +129,36 @@ impl Process {
         process_name_lookup(name.as_ref())
     }
 
-    /// Sends a single message to `dest` with the given `message`.
-    pub fn send<D: Into<Dest>, M: Receivable>(dest: D, message: M) {
-        let dest = dest.into();
-
-        match dest {
-            Dest::Pid(pid) => {
-                if pid.is_local() {
-                    process_sender(pid).map(|sender| sender.send(Message::User(message).into()));
-                } else {
-                    node_process_send_with_pid(pid, message);
-                }
-            }
-            Dest::Named(name, node) => {
-                if node.is_local() {
-                    process_name_lookup(name.as_ref())
-                        .and_then(process_sender)
-                        .map(|sender| sender.send(Message::User(message).into()));
-                } else {
-                    node_process_send_with_name(name.into_owned(), node, message);
-                }
-            }
-            Dest::Alias(reference) => {
-                if reference.is_local() {
-                    alias_retrieve(reference)
-                        .map(|alias| alias.sender.send(Message::User(message).into()));
-                } else {
-                    node_process_send_with_alias(reference, message);
-                }
-            }
-        }
+    /// Sends a message to `dests`.
+    ///
+    /// ## Example:
+    /// This method allows sending to multiple targets with certain trade offs:
+    /// ```ignore
+    /// let pid1 = Process::spawn(async { /* */ });
+    /// let pid2 = Process::spawn(async { /* */ });
+    ///
+    /// // faster when all processes are local.
+    /// for pid in &[pid1, pid2] {
+    ///     Process::send(pid, "hello world!");
+    /// }
+    ///
+    /// // faster when processes are mostly remote.
+    /// Process::send(&[pid1, pid2], "hello world!");
+    /// ```
+    pub fn send<D: Into<Dests>, M: Receivable>(dests: D, message: M) {
+        process_send(dests.into(), message);
     }
 
-    /// Sends a single message to `dest` with the given `message` after the given `duration`.
-    pub fn send_after<D: Into<Dest>, M: Receivable>(dest: D, message: M, duration: Duration) {
+    /// Sends a message to `dests` after the given `duration`.
+    ///
+    /// See [Process::send] for performance trade-offs.
+    ///
+    /// ## Example:
+    /// Sends a message after 5 seconds to `pid`:
+    /// ```ignore
+    /// Process::send_after(pid, "hello world!", Duration::from_secs(5));
+    /// ```
+    pub fn send_after<D: Into<Dests>, M: Receivable>(dest: D, message: M, duration: Duration) {
         let dest = dest.into();
 
         tokio::spawn(async move {

@@ -79,11 +79,18 @@ pub fn process_register(pid: Pid, name: String) -> Result<(), ArgumentError> {
 
     let entry = PROCESS_NAMES.entry(name.clone());
 
-    let Entry::Vacant(entry) = entry else {
-        return Err(ArgumentError::from(format!(
-            "Name {:?} registered to another process!",
-            name
-        )));
+    let entry = match entry {
+        Entry::Occupied(entry) => {
+            if *entry.get() == pid.id() {
+                return Ok(());
+            } else {
+                return Err(ArgumentError::from(format!(
+                    "Name {:?} registered to another process!",
+                    name
+                )));
+            }
+        }
+        Entry::Vacant(entry) => entry,
     };
 
     let mut updated = false;

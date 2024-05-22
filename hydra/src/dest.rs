@@ -18,6 +18,15 @@ pub enum Dest {
     Alias(Reference),
 }
 
+/// One or more process destinations.
+#[derive(Debug)]
+pub enum Dests {
+    /// A single process destination.
+    Dest(Dest),
+    /// Mutiple process destinations.
+    Dests(Vec<Dest>),
+}
+
 impl Dest {
     /// Returns `true` if the [Dest] is for a local process.
     pub const fn is_local(&self) -> bool {
@@ -122,5 +131,94 @@ impl PartialEq<Dest> for Reference {
             Dest::Alias(reference) => reference == other,
             _ => false,
         }
+    }
+}
+
+impl From<Pid> for Dests {
+    fn from(value: Pid) -> Self {
+        Self::Dest(Dest::from(value))
+    }
+}
+
+impl From<Reference> for Dests {
+    fn from(value: Reference) -> Self {
+        Self::Dest(Dest::from(value))
+    }
+}
+
+impl From<&'static str> for Dests {
+    fn from(value: &'static str) -> Self {
+        Self::Dest(Dest::Named(value.into(), Node::Local))
+    }
+}
+
+impl<T> From<(&'static str, T)> for Dests
+where
+    T: Into<Node>,
+{
+    fn from(value: (&'static str, T)) -> Self {
+        Self::Dest(Dest::Named(value.0.into(), value.1.into()))
+    }
+}
+
+impl From<String> for Dests {
+    fn from(value: String) -> Self {
+        Self::Dest(Dest::Named(value.into(), Node::Local))
+    }
+}
+
+impl From<&[Pid]> for Dests {
+    fn from(value: &[Pid]) -> Self {
+        if value.len() == 1 {
+            Self::Dest(Dest::from(value[0]))
+        } else {
+            Self::Dests(value.iter().copied().map(Into::into).collect())
+        }
+    }
+}
+
+impl From<Dest> for Dests {
+    fn from(value: Dest) -> Self {
+        Self::Dest(value)
+    }
+}
+
+impl From<&[Dest]> for Dests {
+    fn from(value: &[Dest]) -> Self {
+        if value.len() == 1 {
+            Self::Dest(value[0].to_owned())
+        } else {
+            Self::Dests(Vec::from(value))
+        }
+    }
+}
+
+impl From<Vec<Dest>> for Dests {
+    fn from(value: Vec<Dest>) -> Self {
+        Self::Dests(value)
+    }
+}
+
+impl From<Vec<Pid>> for Dests {
+    fn from(value: Vec<Pid>) -> Self {
+        Self::Dests(value.into_iter().map(Into::into).collect())
+    }
+}
+
+impl From<&Vec<Pid>> for Dests {
+    fn from(value: &Vec<Pid>) -> Self {
+        Self::Dests(value.iter().copied().map(Into::into).collect())
+    }
+}
+
+impl FromIterator<Dest> for Dests {
+    fn from_iter<T: IntoIterator<Item = Dest>>(iter: T) -> Self {
+        Self::Dests(Vec::from_iter(iter))
+    }
+}
+
+impl FromIterator<Pid> for Dests {
+    fn from_iter<T: IntoIterator<Item = Pid>>(iter: T) -> Self {
+        Self::Dests(Vec::from_iter(iter.into_iter().map(Into::into)))
     }
 }
