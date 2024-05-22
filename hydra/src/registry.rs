@@ -227,6 +227,8 @@ impl Registry {
     }
 
     /// Returns a list of every process registered to the given `registry`.
+    ///
+    /// There is no ordering guarantee.
     pub async fn list<T: Into<Dest>>(
         registry: T,
     ) -> Result<Vec<(RegistryKey, Pid)>, RegistryError> {

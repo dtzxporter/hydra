@@ -33,6 +33,12 @@ async fn test_registry() {
         .expect("Failed to count processes");
 
     tracing::info!("Count of registered processes: {:?}", count);
+
+    let list = Registry::list("space-registry")
+        .await
+        .expect("Failed to list processes");
+
+    tracing::info!("List of registered processes: {:?}", list);
 }
 
 #[derive(Debug, Serialize, Deserialize)]
