@@ -102,6 +102,7 @@ impl Registry {
     /// Constructs a new local [Registry] with the given name.
     ///
     /// Names must be unique on a per-node basis.
+    #[must_use]
     pub fn new<T: Into<String>>(name: T) -> Self {
         Self {
             name: name.into(),
@@ -113,6 +114,7 @@ impl Registry {
     /// Assigns a start routine for the registry to be able to dynamically spawn processes.
     ///
     /// Must return a future that resolves to [Result<Pid, ExitReason>].
+    #[must_use]
     pub fn with_start<T, F>(mut self, start: T) -> Self
     where
         T: Fn(RegistryKey) -> F + Send + Sync + 'static,
@@ -308,6 +310,17 @@ impl Registry {
             value.remove_if(&key, |_, value| *value == pid);
             value
         });
+    }
+}
+
+impl Drop for Registry {
+    fn drop(&mut self) {
+        for process in self.lookup.keys() {
+            Process::unlink(*process);
+            Process::exit(*process, ExitReason::Kill);
+        }
+
+        REGISTRY.remove(&self.name);
     }
 }
 
