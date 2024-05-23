@@ -350,9 +350,13 @@ async fn start_gen_server<T: GenServer>(
 ) -> Result<Pid, ExitReason> {
     let (tx, rx) = oneshot::channel::<Result<(), ExitReason>>();
 
+    let parent: Option<Pid> = link.then(Process::current);
+
     let server = async move {
         let mut gen_server = gen_server;
         let mut options = options;
+
+        let parent = parent.unwrap_or(Process::current());
 
         let registered = if let Some(name) = options.name.take() {
             Process::register(Process::current(), name).is_ok()
@@ -426,13 +430,20 @@ async fn start_gen_server<T: GenServer>(
 
                     return Process::exit(Process::current(), reason);
                 }
-                Message::System(system) => {
-                    if let Err(reason) = gen_server.handle_info(Message::System(system)).await {
+                Message::System(system) => match system {
+                    SystemMessage::Exit(epid, reason) if epid == parent => {
                         gen_server.terminate(reason.clone()).await;
 
                         return Process::exit(Process::current(), reason);
                     }
-                }
+                    _ => {
+                        if let Err(reason) = gen_server.handle_info(Message::System(system)).await {
+                            gen_server.terminate(reason.clone()).await;
+
+                            return Process::exit(Process::current(), reason);
+                        }
+                    }
+                },
             }
         }
     };

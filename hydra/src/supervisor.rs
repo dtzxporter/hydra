@@ -858,6 +858,10 @@ impl GenServer for Supervisor {
         self.init_children().await
     }
 
+    async fn terminate(&mut self, _reason: ExitReason) {
+        self.terminate_children().await;
+    }
+
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {
         use SupervisorMessage::*;
 
