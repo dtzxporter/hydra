@@ -425,15 +425,11 @@ impl Registry {
 
 impl Drop for Registry {
     fn drop(&mut self) {
-        let Some((_, registry)) = REGISTRY.remove(&self.name) else {
-            return;
-        };
+        REGISTRY.remove(&self.name);
 
-        for (process, key) in &self.lookup {
-            if registry.contains_key(key) {
-                Process::unlink(*process);
-                Process::exit(*process, ExitReason::Kill);
-            }
+        for process in self.lookup.keys() {
+            Process::unlink(*process);
+            Process::exit(*process, ExitReason::Kill);
         }
     }
 }
