@@ -1,4 +1,5 @@
 use std::future::Future;
+
 use std::sync::Once;
 use std::time::Duration;
 
@@ -55,6 +56,7 @@ pub trait Application: Sized + Send + 'static {
     fn run(self) {
         use ApplicationMessage::*;
 
+        #[cfg(feature = "tracing")]
         if Self::TRACING_SUBSCRIBE {
             static TRACING_SUBSCRIBE_ONCE: Once = Once::new();
 
@@ -65,10 +67,11 @@ pub trait Application: Sized + Send + 'static {
 
         let mut prev_hook: Option<_> = None;
 
+        #[cfg(feature = "tracing")]
         if Self::TRACING_PANICS {
             prev_hook = Some(std::panic::take_hook());
 
-            std::panic::set_hook(Box::new(tracing_panic::panic_hook));
+            std::panic::set_hook(Box::new(panic_hook));
         }
 
         let rt = Runtime::new().unwrap();
@@ -207,4 +210,42 @@ async fn signal_handler() {
     let _ = tokio::signal::ctrl_c().await;
 
     Process::exit(Process::current(), ExitReason::from("CTRL_C"));
+}
+
+/// Handles forwarding panic messages through tracing when enabled.
+#[cfg(feature = "tracing")]
+fn panic_hook(panic_info: &std::panic::PanicInfo) {
+    use std::backtrace::Backtrace;
+    use std::backtrace::BacktraceStatus;
+
+    use tracing::*;
+
+    let payload = panic_info.payload();
+
+    #[allow(clippy::manual_map)]
+    let payload = if let Some(s) = payload.downcast_ref::<&str>() {
+        Some(&**s)
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        Some(s.as_str())
+    } else {
+        None
+    };
+
+    let location = panic_info.location().map(|location| location.to_string());
+
+    let backtrace = Backtrace::capture();
+    let backtrace = if backtrace.status() == BacktraceStatus::Disabled {
+        String::from("run with RUST_BACKTRACE=1 environment variable to display a backtrace")
+    } else {
+        field::display(backtrace).to_string()
+    };
+
+    event!(
+        target: "hydra",
+        Level::ERROR,
+        payload = payload,
+        location = location,
+        backtrace = ?backtrace,
+        "A process has panicked",
+    );
 }
