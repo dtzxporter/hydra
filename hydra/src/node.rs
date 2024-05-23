@@ -224,6 +224,24 @@ impl From<String> for Node {
     }
 }
 
+impl PartialEq<(&str, SocketAddr)> for Node {
+    fn eq(&self, other: &(&str, SocketAddr)) -> bool {
+        match self {
+            Self::Local => false,
+            Self::Remote(name, address) => name == other.0 && *address == other.1,
+        }
+    }
+}
+
+impl PartialEq<(String, SocketAddr)> for Node {
+    fn eq(&self, other: &(String, SocketAddr)) -> bool {
+        match self {
+            Self::Local => false,
+            Self::Remote(name, address) => *name == other.0 && *address == other.1,
+        }
+    }
+}
+
 impl PartialEq<&str> for Node {
     fn eq(&self, other: &&str) -> bool {
         match self {

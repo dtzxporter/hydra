@@ -403,9 +403,17 @@ pub async fn node_remote_connector(node: Node) {
         .expect("Failed to receive hello handshake packet!");
 
     if let Frame::Hello(mut hello) = frame {
-        if hello.validate() {
+        let matches = node == (hello.name.as_str(), hello.broadcast_address);
+
+        if hello.validate() && matches {
             std::mem::forget(connector);
             return node_remote_supervisor(writer, reader, hello, supervisor.into_inner()).await;
+        } else if !matches {
+            panic!(
+                "Node was not the expected node: {:?} (wanted) {:?} (received).",
+                node,
+                Node::from((hello.name, hello.broadcast_address))
+            );
         } else {
             panic!("Node handshake failed validation!");
         }
