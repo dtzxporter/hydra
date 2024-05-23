@@ -23,6 +23,7 @@ use crate::Node;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
+use crate::Shutdown;
 use crate::SystemMessage;
 
 /// A local collection of active process registries.
@@ -100,6 +101,7 @@ pub struct Registry {
                 + Sync,
         >,
     >,
+    shutdown: Shutdown,
     lookup: BTreeMap<Pid, RegistryKey>,
 }
 
@@ -112,6 +114,7 @@ impl Registry {
         Self {
             name: name.into(),
             start: None,
+            shutdown: Shutdown::BrutalKill,
             lookup: BTreeMap::new(),
         }
     }
@@ -126,6 +129,12 @@ impl Registry {
         F: Future<Output = Result<Pid, ExitReason>> + Send + Sync + 'static,
     {
         self.start = Some(Arc::new(move |key| Box::new(start(key))));
+        self
+    }
+
+    /// Sets the method used to shutdown any registered processes once when the [Registry] is terminated.
+    pub fn with_shutdown(mut self, shutdown: Shutdown) -> Self {
+        self.shutdown = shutdown;
         self
     }
 
@@ -289,7 +298,7 @@ impl Registry {
 
         ChildSpec::new("Registry")
             .start(move || self.clone().start_link(options.clone()))
-            .child_type(ChildType::Worker)
+            .child_type(ChildType::Supervisor)
     }
 
     /// Looks up, or starts a process by the given key.
@@ -399,6 +408,27 @@ impl GenServer for Registry {
         Process::set_flags(ProcessFlags::TRAP_EXIT);
 
         Ok(())
+    }
+
+    async fn terminate(&mut self, _reason: ExitReason) {
+        match self.shutdown {
+            Shutdown::BrutalKill => {
+                // Do nothing, the drop will automatically kill each process.
+            }
+            _ => {
+                let Some((_, registry)) = REGISTRY.remove(&self.name) else {
+                    return;
+                };
+
+                for (process, key) in &self.lookup {
+                    if registry.contains_key(key) {
+                        let _ = self.shutdown.execute(*process).await;
+                    }
+                }
+
+                self.lookup.clear();
+            }
+        }
     }
 
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {

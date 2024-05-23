@@ -20,7 +20,6 @@ use crate::Message;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
-use crate::Reference;
 use crate::Restart;
 use crate::Shutdown;
 use crate::SystemMessage;
@@ -427,7 +426,7 @@ impl Supervisor {
                 continue;
             };
 
-            if let Err(reason) = shutdown(pid, child.shutdown()).await {
+            if let Err(reason) = child.shutdown().execute(pid).await {
                 #[cfg(feature = "tracing")]
                 tracing::error!(reason = ?reason, child_pid = ?pid, "Shutdown error");
 
@@ -451,7 +450,7 @@ impl Supervisor {
 
         child.restarting = false;
 
-        let _ = shutdown(pid, child.shutdown()).await;
+        let _ = child.shutdown().execute(pid).await;
     }
 
     /// Checks all of the children for correct specification and then starts them.
@@ -934,106 +933,4 @@ impl std::convert::From<CallError> for SupervisorError {
     fn from(value: CallError) -> Self {
         Self::CallError(value)
     }
-}
-
-/// Terminates the given `pid` using the given `shutdown` method.
-async fn shutdown(pid: Pid, shutdown: Shutdown) -> Result<(), ExitReason> {
-    let monitor = Process::monitor(pid);
-
-    match shutdown {
-        Shutdown::BrutalKill => shutdown_brutal_kill(pid, monitor).await,
-        Shutdown::Duration(timeout) => shutdown_timeout(pid, monitor, timeout).await,
-        Shutdown::Infinity => shutdown_infinity(pid, monitor).await,
-    }
-}
-
-/// Terminates the given `pid` by forcefully killing it and waiting for the `monitor` to fire.
-async fn shutdown_brutal_kill(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
-    Process::exit(pid, ExitReason::Kill);
-
-    let result = Process::receiver()
-        .for_message::<()>()
-        .select(|message| {
-            match message {
-                Message::System(SystemMessage::ProcessDown(_, tag, _)) => {
-                    // Make sure that the tag matches.
-                    *tag == monitor
-                }
-                _ => false,
-            }
-        })
-        .await;
-
-    let Message::System(SystemMessage::ProcessDown(_, _, reason)) = result else {
-        unreachable!()
-    };
-
-    unlink_flush(pid, reason);
-
-    Ok(())
-}
-
-/// Terminates the given `pid` by gracefully waiting for `timeout`
-/// then forcefully kills it as necessary while waiting for `monitor` to fire.
-async fn shutdown_timeout(
-    pid: Pid,
-    monitor: Reference,
-    timeout: Duration,
-) -> Result<(), ExitReason> {
-    Process::exit(pid, ExitReason::from("shutdown"));
-
-    let receiver = Process::receiver()
-                        .select(|message| matches!(message, Message::System(SystemMessage::ProcessDown(_, tag, _)) if *tag == monitor));
-
-    let result = Process::timeout(timeout, receiver).await;
-
-    match result {
-        Ok(Message::System(SystemMessage::ProcessDown(_, _, reason))) => {
-            unlink_flush(pid, reason);
-
-            Ok(())
-        }
-        Ok(_) => unreachable!(),
-        Err(_) => shutdown_brutal_kill(pid, monitor).await,
-    }
-}
-
-/// Terminates the given `pid` by gracefully waiting indefinitely for the `monitor` to fire.
-async fn shutdown_infinity(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
-    Process::exit(pid, ExitReason::from("shutdown"));
-
-    let result = Process::receiver()
-                    .select(|message| matches!(message, Message::System(SystemMessage::ProcessDown(_, tag, _)) if *tag == monitor))
-                    .await;
-
-    let Message::System(SystemMessage::ProcessDown(_, _, reason)) = result else {
-        unreachable!()
-    };
-
-    unlink_flush(pid, reason);
-
-    Ok(())
-}
-
-/// Unlinks the given process and ensures that any pending exit signal is flushed from the message queue.
-///
-/// Returns the real [ExitReason] or the `default_reason` if no signal was found.
-fn unlink_flush(pid: Pid, default_reason: ExitReason) -> ExitReason {
-    Process::unlink(pid);
-
-    let mut reason = default_reason;
-
-    Process::receiver().remove(|message| match message {
-        Message::System(SystemMessage::Exit(epid, ereason)) => {
-            if *epid == pid {
-                reason = ereason.clone();
-                return true;
-            }
-
-            false
-        }
-        _ => false,
-    });
-
-    reason
 }
