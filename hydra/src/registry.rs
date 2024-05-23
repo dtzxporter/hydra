@@ -10,6 +10,8 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::shutdown_infinity;
+use crate::shutdown_timeout;
 use crate::CallError;
 use crate::ChildSpec;
 use crate::ChildType;
@@ -23,6 +25,7 @@ use crate::Node;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
+use crate::Reference;
 use crate::Shutdown;
 use crate::SystemMessage;
 
@@ -338,6 +341,40 @@ impl Registry {
         }
     }
 
+    /// Terminates all registered children of this registry.
+    async fn terminate_children(&mut self) {
+        match self.shutdown {
+            Shutdown::BrutalKill => {
+                // Do nothing, the drop will automatically kill each process.
+            }
+            _ => {
+                let Some((_, registry)) = REGISTRY.remove(&self.name) else {
+                    return;
+                };
+
+                let mut monitors: Vec<(Pid, Reference)> = Vec::with_capacity(registry.len());
+
+                for (process, key) in &self.lookup {
+                    if registry.contains_key(key) {
+                        monitors.push((*process, Process::monitor(*process)));
+
+                        Process::exit(*process, ExitReason::from("shutdown"));
+                    }
+                }
+
+                for (process, monitor) in monitors {
+                    if let Shutdown::Duration(timeout) = self.shutdown {
+                        let _ = shutdown_timeout(process, monitor, timeout).await;
+                    } else if let Shutdown::Infinity = self.shutdown {
+                        let _ = shutdown_infinity(process, monitor).await;
+                    }
+                }
+
+                self.lookup.clear();
+            }
+        }
+    }
+
     /// Stops a process by the given key.
     fn stop_by_key(&mut self, key: RegistryKey) -> Result<(), RegistryError> {
         let Some(process) = lookup_process(&self.name, &key) else {
@@ -411,24 +448,7 @@ impl GenServer for Registry {
     }
 
     async fn terminate(&mut self, _reason: ExitReason) {
-        match self.shutdown {
-            Shutdown::BrutalKill => {
-                // Do nothing, the drop will automatically kill each process.
-            }
-            _ => {
-                let Some((_, registry)) = REGISTRY.remove(&self.name) else {
-                    return;
-                };
-
-                for (process, key) in &self.lookup {
-                    if registry.contains_key(key) {
-                        let _ = self.shutdown.execute(*process).await;
-                    }
-                }
-
-                self.lookup.clear();
-            }
-        }
+        self.terminate_children().await;
     }
 
     async fn handle_cast(&mut self, message: Self::Message) -> Result<(), ExitReason> {

@@ -6,6 +6,9 @@ use std::time::Instant;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::shutdown_brutal_kill;
+use crate::shutdown_infinity;
+use crate::shutdown_timeout;
 use crate::AutoShutdown;
 use crate::CallError;
 use crate::ChildSpec;
@@ -426,7 +429,7 @@ impl Supervisor {
                 continue;
             };
 
-            if let Err(reason) = child.shutdown().execute(pid).await {
+            if let Err(reason) = shutdown(pid, child.shutdown()).await {
                 #[cfg(feature = "tracing")]
                 tracing::error!(reason = ?reason, child_pid = ?pid, "Shutdown error");
 
@@ -450,7 +453,7 @@ impl Supervisor {
 
         child.restarting = false;
 
-        let _ = child.shutdown().execute(pid).await;
+        let _ = shutdown(pid, child.shutdown()).await;
     }
 
     /// Checks all of the children for correct specification and then starts them.
@@ -932,5 +935,16 @@ impl GenServer for Supervisor {
 impl std::convert::From<CallError> for SupervisorError {
     fn from(value: CallError) -> Self {
         Self::CallError(value)
+    }
+}
+
+/// Terminates the given `pid` using the given `shutdown` method.
+async fn shutdown(pid: Pid, shutdown: Shutdown) -> Result<(), ExitReason> {
+    let monitor = Process::monitor(pid);
+
+    match shutdown {
+        Shutdown::BrutalKill => shutdown_brutal_kill(pid, monitor).await,
+        Shutdown::Duration(timeout) => shutdown_timeout(pid, monitor, timeout).await,
+        Shutdown::Infinity => shutdown_infinity(pid, monitor).await,
     }
 }

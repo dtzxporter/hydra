@@ -20,19 +20,6 @@ pub enum Shutdown {
     Infinity,
 }
 
-impl Shutdown {
-    /// Executes the shutdown operation on the given `pid`.
-    pub(crate) async fn execute(&self, pid: Pid) -> Result<(), ExitReason> {
-        let monitor = Process::monitor(pid);
-
-        match self {
-            Shutdown::BrutalKill => shutdown_brutal_kill(pid, monitor).await,
-            Shutdown::Duration(timeout) => shutdown_timeout(pid, monitor, *timeout).await,
-            Shutdown::Infinity => shutdown_infinity(pid, monitor).await,
-        }
-    }
-}
-
 /// Defines how a superviser should handle shutdown when a significant process exits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AutoShutdown {
@@ -51,7 +38,7 @@ impl From<Duration> for Shutdown {
 }
 
 /// Terminates the given `pid` by forcefully killing it and waiting for the `monitor` to fire.
-async fn shutdown_brutal_kill(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
+pub(crate) async fn shutdown_brutal_kill(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
     Process::exit(pid, ExitReason::Kill);
 
     let result = Process::receiver()
@@ -78,7 +65,7 @@ async fn shutdown_brutal_kill(pid: Pid, monitor: Reference) -> Result<(), ExitRe
 
 /// Terminates the given `pid` by gracefully waiting for `timeout`
 /// then forcefully kills it as necessary while waiting for `monitor` to fire.
-async fn shutdown_timeout(
+pub(crate) async fn shutdown_timeout(
     pid: Pid,
     monitor: Reference,
     timeout: Duration,
@@ -102,7 +89,7 @@ async fn shutdown_timeout(
 }
 
 /// Terminates the given `pid` by gracefully waiting indefinitely for the `monitor` to fire.
-async fn shutdown_infinity(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
+pub(crate) async fn shutdown_infinity(pid: Pid, monitor: Reference) -> Result<(), ExitReason> {
     Process::exit(pid, ExitReason::from("shutdown"));
 
     let result = Process::receiver()

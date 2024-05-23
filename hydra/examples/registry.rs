@@ -53,8 +53,6 @@ enum MyMessage {
 struct MyApplication;
 
 impl Application for MyApplication {
-    const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(20);
-
     async fn start(&self) -> Result<Pid, ExitReason> {
         // Spawn a registry that will take care of registering 'MySpace'.
         let children = [
