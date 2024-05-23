@@ -1,3 +1,7 @@
+use std::time::Duration;
+
+use hydra::ProcessFlags;
+use hydra::Shutdown;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,6 +53,8 @@ enum MyMessage {
 struct MyApplication;
 
 impl Application for MyApplication {
+    const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(20);
+
     async fn start(&self) -> Result<Pid, ExitReason> {
         // Spawn a registry that will take care of registering 'MySpace'.
         let children = [
@@ -60,6 +66,7 @@ impl Application for MyApplication {
 
                     MySpace::new(id).start_link(GenServerOptions::new())
                 })
+                .with_shutdown(Shutdown::Infinity)
                 .child_spec(GenServerOptions::new())
                 .id("space-registry"),
             ChildSpec::new("test-registry")
@@ -90,9 +97,17 @@ impl GenServer for MySpace {
     type Message = MyMessage;
 
     async fn init(&mut self) -> Result<(), ExitReason> {
+        Process::set_flags(ProcessFlags::TRAP_EXIT);
+
         tracing::info!("Init MySpace for {:?}", self.id);
 
         Ok(())
+    }
+
+    async fn terminate(&mut self, _reason: ExitReason) {
+        tracing::info!("Shutting down MySpace! {:?}", self.id);
+
+        Process::sleep(Duration::from_secs(5)).await;
     }
 }
 

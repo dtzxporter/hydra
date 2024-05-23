@@ -1,5 +1,9 @@
 use std::future::Future;
 use std::sync::Once;
+use std::time::Duration;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
@@ -11,6 +15,12 @@ use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
 use crate::SystemMessage;
+
+/// Messages used internally by [Application].
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+enum ApplicationMessage {
+    ShutdownTimeout,
+}
 
 /// Main application logic and entry point for a hydra program.
 ///
@@ -28,6 +38,12 @@ pub trait Application: Sized + Send + 'static {
     #[cfg(feature = "tracing")]
     const TRACING_PANICS: bool = true;
 
+    /// Whether or not to listen for shutdown signals and allow the program to cleanup processes before closing.
+    const GRACEFUL_SHUTDOWN: bool = true;
+
+    /// The maximum amount of time to wait for the application to shutdown before exiting.
+    const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+
     /// Called when an application is starting. You should link a process here and return it's [Pid].
     ///
     /// The [Application] will wait for that process to exit before returning from `run`.
@@ -37,6 +53,8 @@ pub trait Application: Sized + Send + 'static {
     ///
     /// This method will return when the linked process created in `start` has exited.
     fn run(self) {
+        use ApplicationMessage::*;
+
         if Self::TRACING_SUBSCRIBE {
             static TRACING_SUBSCRIBE_ONCE: Once = Once::new();
 
@@ -66,10 +84,22 @@ pub trait Application: Sized + Send + 'static {
                         #[cfg(feature = "tracing")]
                         tracing::info!(supervisor = ?pid, "Application supervisor has started");
 
+                        let spid = if Self::GRACEFUL_SHUTDOWN {
+                            Some(Process::spawn_link(signal_handler()))
+                        } else {
+                            None
+                        };
+
                         loop {
-                            let message = Process::receive::<()>().await;
+                            let message = Process::receive::<ApplicationMessage>().await;
 
                             match message {
+                                Message::User(ShutdownTimeout) => {
+                                    #[cfg(feature = "tracing")]
+                                    tracing::error!(timeout = ?Self::GRACEFUL_SHUTDOWN_TIMEOUT, "Application failed to shutdown gracefully");
+
+                                    Process::exit(pid, ExitReason::Kill);
+                                }
                                 Message::System(SystemMessage::Exit(epid, ereason)) => {
                                     if epid == pid {
                                         if ereason.is_custom() && ereason != "shutdown" {
@@ -80,6 +110,12 @@ pub trait Application: Sized + Send + 'static {
                                             tracing::info!(reason = ?ereason, supervisor = ?epid, "Application supervisor has exited");
                                         }
                                         break;
+                                    } else if spid.is_some_and(|spid| spid == epid) {
+                                        #[cfg(feature = "tracing")]
+                                        tracing::info!(reason = ?ereason, supervisor = ?epid, timeout = ?Self::GRACEFUL_SHUTDOWN_TIMEOUT, "Application starting graceful shutdown");
+
+                                        Process::exit(pid, ExitReason::from("shutdown"));
+                                        Process::send_after(Process::current(), ShutdownTimeout, Self::GRACEFUL_SHUTDOWN_TIMEOUT);
                                     }
                                 }
                                 _ => continue,
@@ -145,4 +181,30 @@ pub trait Application: Sized + Send + 'static {
             }
         });
     }
+}
+
+/// Handles SIGTERM and ctrl+c signals on unix-like platforms.
+#[cfg(unix)]
+async fn signal_handler() {
+    use tokio::signal::unix;
+
+    let mut sigterm =
+        unix::signal(unix::SignalKind::terminate()).expect("Failed to register SIGTERM handler");
+
+    tokio::select! {
+        _ = sigterm.recv() => {
+            Process::exit(Process::current(), ExitReason::from("SIGTERM"));
+        }
+        _ = tokio::signal::ctrl_c() => {
+            Process::exit(Process::current(), ExitReason::from("CTRL_C"));
+        }
+    }
+}
+
+/// Handles ctrl+c signals on non-unix-like platforms.
+#[cfg(not(unix))]
+async fn signal_handler() {
+    let _ = tokio::signal::ctrl_c().await;
+
+    Process::exit(Process::current(), ExitReason::from("CTRL_C"));
 }

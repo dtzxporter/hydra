@@ -294,6 +294,7 @@ pub trait GenServer: Sized + Send + 'static {
     /// `terminate` is called if:
     /// - The [GenServer] traps exits (using [Process::flags]) and the parent process sends an exit signal.
     /// - A callback (except `init`) returns stop with a given reason.
+    /// - The `stop` method is called on a [GenServer].
     fn terminate(&mut self, reason: ExitReason) -> impl Future<Output = ()> + Send {
         async move {
             let _ = reason;
