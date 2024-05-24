@@ -2,6 +2,8 @@
 name = "hydra-macros"
 version = "0.1.1"
 edition = "2021"
+license-file = "LICENSE"
+description = "Macros for the Hydra framework."
 
 [lib]
 proc-macro = true
