@@ -3,6 +3,8 @@ name = "hydra-macros"
 version = "0.1.1"
 edition = "2021"
 license.workspace = true
+repository.workspace = true
+categories.workspace = true
 description = "Macros for the Hydra framework."
 
 [lib]

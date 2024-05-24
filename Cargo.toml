@@ -5,6 +5,8 @@ resolver = "2"
 package.license = "MIT"
 package.readme = "README.md"
 package.description = "A framework for writing fault tolerant, highly scalable applications with the Rust programming language."
+package.repository = "https://github.com/dtzxporter/hydra"
+package.categories = ["asynchronous", "concurrency", "network-programming"]
 
 [workspace.dependencies]
 flume = "0.11"
