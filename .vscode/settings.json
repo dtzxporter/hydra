@@ -16,4 +16,5 @@
         "macro-error"
     ],
     "rust-analyzer.procMacro.enable": true,
+    "evenBetterToml.formatter.arrayAutoExpand": false
 }

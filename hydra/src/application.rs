@@ -196,10 +196,10 @@ async fn signal_handler() {
 
     tokio::select! {
         _ = sigterm.recv() => {
-            Process::exit(Process::current(), ExitReason::from("SIGTERM"));
+            Process::exit(Process::current(), ExitReason::from("sigterm"));
         }
         _ = tokio::signal::ctrl_c() => {
-            Process::exit(Process::current(), ExitReason::from("CTRL_C"));
+            Process::exit(Process::current(), ExitReason::from("ctrl_c"));
         }
     }
 }
@@ -209,7 +209,7 @@ async fn signal_handler() {
 async fn signal_handler() {
     let _ = tokio::signal::ctrl_c().await;
 
-    Process::exit(Process::current(), ExitReason::from("CTRL_C"));
+    Process::exit(Process::current(), ExitReason::from("ctrl_c"));
 }
 
 /// Handles forwarding panic messages through tracing when enabled.

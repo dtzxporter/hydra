@@ -1,5 +1,5 @@
 [workspace]
-members = ["hydra", "hydra-macros", "hydra-test", "hydra-test-client", "hydra-test-main"]
+members = ["hydra", "hydra-macros", "hydra-test", "hydra-test-client", "hydra-test-main", "hydra-websockets"]
 resolver = "2"
 
 package.license = "MIT"
@@ -17,17 +17,19 @@ sha2 = "0.10"
 pin-project-lite = "0.2"
 bincode = "2.0.0-rc.3"
 dashmap = "5.5.3"
-pingora-timeout = "0.1"
+pingora-timeout = "0.2"
 bytes = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive", "std"] }
 serde_json = { version = "1.0", default-features = false, features = ["std"] }
 tokio = { version = "1.0", default-features = false, features = ["rt", "rt-multi-thread", "net", "sync", "time", "macros", "signal"] }
 tokio-util = { version = "0.7", default-features = false, features = ["codec"] }
+tokio-tungstenite = { version = "0.21", default-features = false, features = ["handshake"] }
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = "0.3"
 
 hydra-macros = { version = "0.1.2", path = "./hydra-macros" }
+hydra = { version = "0.1.2", path = "./hydra" }
 
 [profile.release]
 lto = "fat"
