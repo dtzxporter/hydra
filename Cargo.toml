@@ -2,6 +2,8 @@
 members = ["hydra", "hydra-macros", "hydra-test", "hydra-test-client", "hydra-test-main"]
 resolver = "2"
 
+package.license-file = "LICENSE"
+
 [workspace.dependencies]
 flume = "0.11"
 once_cell = "1.19"
