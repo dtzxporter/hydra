@@ -36,7 +36,7 @@ A basic `GenServer` Stack application with Hydra.
 Make sure you have added Hydra, Serde in your Cargo.toml:
 ```toml
 [dependencies]
-hydra = "0.1.0"
+hydra = "0.1"
 serde = { version="1.0", features = "derive" }
 ```
 
