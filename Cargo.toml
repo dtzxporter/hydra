@@ -21,7 +21,7 @@ futures-util = { version = "0.3", default-features = false, features = ["std", "
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = "0.3"
 
-hydra-macros = { path = "./hydra-macros" }
+hydra-macros = { version = "0.1.1", path = "./hydra-macros" }
 
 [profile.release]
 lto = "fat"
