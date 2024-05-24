@@ -3,7 +3,7 @@ name = "hydra"
 version = "0.1.1"
 edition = "2021"
 readme.workspace = true
-license-file.workspace = true
+license.workspace = true
 description.workspace = true
 
 [features]

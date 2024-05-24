@@ -54,7 +54,7 @@ pub use gen_server::*;
 pub use gen_server_options::*;
 pub use local::*;
 pub use message::*;
-pub use monitor::*;
+
 pub use node::*;
 pub use node_options::*;
 pub use node_state::*;
@@ -79,6 +79,7 @@ pub use hydra_macros::test;
 pub(crate) use alias::*;
 pub(crate) use catch_unwind::*;
 pub(crate) use link::*;
+pub(crate) use monitor::*;
 pub(crate) use node_kernel::*;
 pub(crate) use node_local::*;
 pub(crate) use node_registration::*;

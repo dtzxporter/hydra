@@ -2,7 +2,7 @@
 members = ["hydra", "hydra-macros", "hydra-test", "hydra-test-client", "hydra-test-main"]
 resolver = "2"
 
-package.license-file = "LICENSE"
+package.license = "MIT"
 package.readme = "README.md"
 package.description = "A framework for writing fault tolerant, highly scalable applications with the Rust programming language."
 
