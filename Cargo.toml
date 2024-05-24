@@ -3,6 +3,8 @@ members = ["hydra", "hydra-macros", "hydra-test", "hydra-test-client", "hydra-te
 resolver = "2"
 
 package.license-file = "LICENSE"
+package.readme = "README.md"
+package.description = "A framework for writing fault tolerant, highly scalable applications with the Rust programming language."
 
 [workspace.dependencies]
 flume = "0.11"
