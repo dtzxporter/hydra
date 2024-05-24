@@ -10,8 +10,6 @@ use tokio_tungstenite::accept_hdr_async;
 use tokio_tungstenite::tungstenite;
 
 use tungstenite::handshake::server::ErrorResponse;
-use tungstenite::handshake::server::Request;
-use tungstenite::handshake::server::Response;
 
 use hydra::ExitReason;
 use hydra::GenServer;
@@ -19,10 +17,14 @@ use hydra::Pid;
 use hydra::Process;
 use hydra::ProcessFlags;
 
+use crate::Request;
+use crate::Response;
+
 use crate::start_websocket_handler;
 use crate::WebsocketHandler;
 use crate::WebsocketServerConfig;
 
+/// A [Process] that listens for websocket connections and spawns [WebsocketHandler]'s to read/write to them.
 pub struct WebsocketServer<T: WebsocketHandler + Send + 'static> {
     config: WebsocketServerConfig,
     server: Option<Pid>,
@@ -33,6 +35,7 @@ impl<T> WebsocketServer<T>
 where
     T: WebsocketHandler + Send + 'static,
 {
+    /// Constructs a new instance of [WebsocketServer] with the given `config`.
     pub fn new(config: WebsocketServerConfig) -> Self {
         WebsocketServer {
             config,
@@ -80,10 +83,11 @@ where
     }
 }
 
+/// Internal [WebsocketServer] accept routine.
 async fn server_accept<T, S>(stream: S, address: SocketAddr, config: WebsocketServerConfig)
 where
     T: WebsocketHandler + Send + 'static,
-    S: AsyncRead + AsyncWrite + Unpin,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let mut handler: Option<T> = None;
 
@@ -127,13 +131,17 @@ where
     #[cfg(feature = "tracing")]
     tracing::trace!(address = ?address, "Accepted websocket connection");
 
-    Process::spawn(start_websocket_handler(handler));
+    Process::spawn(start_websocket_handler(handler, stream));
 }
 
+/// Internal [WebsocketServer] process routine.
 async fn server_process<T>(server: TcpListener, config: WebsocketServerConfig)
 where
     T: WebsocketHandler + Send + 'static,
 {
+    #[cfg(feature = "tracing")]
+    tracing::info!(address = ?config.address, "Websocket server accepting connections");
+
     loop {
         match server.accept().await {
             Ok((stream, address)) => {
