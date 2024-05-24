@@ -1,4 +1,4 @@
-# <img src=".github/hydra.png" width="32" height="32"> Hydra
+# <img src="https://raw.githubusercontent.com/dtzxporter/hydra/main/.github/hydra.png" width="32" height="32"> Hydra
  
 A framework for writing fault tolerant, highly scalable applications with the Rust programming language. It is:
 
