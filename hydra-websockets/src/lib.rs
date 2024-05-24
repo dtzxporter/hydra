@@ -11,7 +11,7 @@ pub use websocket_server_config::*;
 use tokio_tungstenite::tungstenite;
 
 // Re-export for WebSocketHandler::accept.
-pub use tungstenite::handshake::server::Request;
-pub use tungstenite::handshake::server::Response;
+pub use tungstenite::handshake::server::Request as WebsocketRequest;
+pub use tungstenite::handshake::server::Response as WebsocketResponse;
 pub use tungstenite::protocol::frame::coding::CloseCode;
 pub use tungstenite::Message as WebsocketMessage;

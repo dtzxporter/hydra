@@ -7,11 +7,11 @@ use hydra::GenServerOptions;
 use hydra::Pid;
 use hydra::Process;
 
-use hydra_websockets::Request;
-use hydra_websockets::Response;
 use hydra_websockets::WebsocketCommand;
 use hydra_websockets::WebsocketHandler;
 use hydra_websockets::WebsocketMessage;
+use hydra_websockets::WebsocketRequest;
+use hydra_websockets::WebsocketResponse;
 use hydra_websockets::WebsocketServer;
 use hydra_websockets::WebsocketServerConfig;
 
@@ -20,7 +20,10 @@ struct MyWebsocketHandler;
 impl WebsocketHandler for MyWebsocketHandler {
     type Message = ();
 
-    fn accept(_request: &Request, response: Response) -> Result<(Response, Self), ExitReason> {
+    fn accept(
+        _request: &WebsocketRequest,
+        response: WebsocketResponse,
+    ) -> Result<(WebsocketResponse, Self), ExitReason> {
         // You can extract any header information from `request` and pass it to the handler.
         Ok((response, MyWebsocketHandler))
     }

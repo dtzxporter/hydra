@@ -17,8 +17,8 @@ use hydra::Pid;
 use hydra::Process;
 use hydra::ProcessFlags;
 
-use crate::Request;
-use crate::Response;
+use crate::WebsocketRequest;
+use crate::WebsocketResponse;
 
 use crate::start_websocket_handler;
 use crate::WebsocketHandler;
@@ -91,7 +91,9 @@ where
 {
     let mut handler: Option<T> = None;
 
-    let callback = |request: &Request, response: Response| match T::accept(request, response) {
+    let callback = |request: &WebsocketRequest, response: WebsocketResponse| match T::accept(
+        request, response,
+    ) {
         Ok((response, rhandler)) => {
             handler = Some(rhandler);
             Ok(response)

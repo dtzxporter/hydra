@@ -16,10 +16,10 @@ use hydra::Message;
 use hydra::Process;
 use hydra::Receivable;
 
-use crate::Request;
-use crate::Response;
 use crate::WebsocketCommand;
 use crate::WebsocketMessage;
+use crate::WebsocketRequest;
+use crate::WebsocketResponse;
 
 /// A process that handles websocket messages.
 pub trait WebsocketHandler
@@ -32,7 +32,10 @@ where
     /// A callback used to accept or deny a request for a websocket upgrade.
     ///
     /// You can extract information from the request and put it in your handler state.
-    fn accept(request: &Request, response: Response) -> Result<(Response, Self), ExitReason>;
+    fn accept(
+        request: &WebsocketRequest,
+        response: WebsocketResponse,
+    ) -> Result<(WebsocketResponse, Self), ExitReason>;
 
     /// An optional callback that happens before the first message is sent/received from the websocket.
     ///
@@ -216,6 +219,7 @@ fn error_to_reason(error: &Error) -> ExitReason {
         Error::Io(_) => ExitReason::from("io_error"),
         Error::Tls(_) => ExitReason::from("tls_error"),
         Error::Utf8 => ExitReason::from("utf8_error"),
+        Error::AttackAttempt => ExitReason::from("attack_attempt"),
         _ => ExitReason::from("unknown"),
     }
 }
