@@ -16,7 +16,7 @@ hmac = "0.12"
 sha2 = "0.10"
 pin-project-lite = "0.2"
 bincode = "2.0.0-rc.3"
-dashmap = { git = "https://github.com/dtzxporter/dashmap", branch = "fix-abort-on-panic-when-already-in-panic" }
+dashmap = "5.5.3"
 pingora-timeout = "0.2"
 bytes = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive", "std"] }
@@ -35,3 +35,6 @@ hydra = { version = "0.1.3", path = "./hydra" }
 lto = "fat"
 strip = true
 codegen-units = 1
+
+[patch.crates-io]
+dashmap = { git = "https://github.com/dtzxporter/dashmap", branch = "fix-abort-on-panic-when-already-in-panic" }
