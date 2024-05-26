@@ -1,6 +1,6 @@
 [package]
 name = "hydra-websockets"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 readme = "./README.md"
 license.workspace = true
@@ -11,10 +11,12 @@ description = "A websocket server for the hydra framework."
 [features]
 default = ["tracing"]
 tracing = ["dep:tracing"]
+native-tls = ["dep:tokio-native-tls"]
 
 [dependencies]
 tracing = { workspace = true, optional = true }
 tokio.workspace = true
 tokio-tungstenite.workspace = true
+tokio-native-tls = { workspace = true, optional = true }
 futures-util.workspace = true
 hydra.workspace = true
