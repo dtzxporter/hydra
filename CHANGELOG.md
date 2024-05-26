@@ -6,6 +6,14 @@
 
 ### Fixed
 
+# 0.1.8
+
+### Changed
+- Websocket commands api now has a buffer instead of returning a vec.
+
+### Fixed
+- Websocket command execution respects a close command.
+
 # 0.1.7
 
 ### Added

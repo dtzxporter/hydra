@@ -17,6 +17,7 @@ use hydra::Process;
 use hydra::Receivable;
 
 use crate::WebsocketCommand;
+use crate::WebsocketCommands;
 use crate::WebsocketMessage;
 use crate::WebsocketRequest;
 use crate::WebsocketResponse;
@@ -42,25 +43,25 @@ where
     /// This is the first callback that happens in the process responsible for the websocket.
     fn websocket_init(
         &mut self,
-    ) -> impl Future<Output = Result<Vec<WebsocketCommand>, ExitReason>> + Send {
-        async move { Ok(Vec::new()) }
+    ) -> impl Future<Output = Result<Option<WebsocketCommands>, ExitReason>> + Send {
+        async move { Ok(None) }
     }
 
     /// Invoked to handle messages received from the websocket.
     fn websocket_handle(
         &mut self,
         message: WebsocketMessage,
-    ) -> impl Future<Output = Result<Vec<WebsocketCommand>, ExitReason>> + Send;
+    ) -> impl Future<Output = Result<Option<WebsocketCommands>, ExitReason>> + Send;
 
     /// Invoked to handle messages from processes and system messages.
     fn websocket_info(
         &mut self,
         info: Message<Self::Message>,
-    ) -> impl Future<Output = Result<Vec<WebsocketCommand>, ExitReason>> + Send {
+    ) -> impl Future<Output = Result<Option<WebsocketCommands>, ExitReason>> + Send {
         async move {
             let _ = info;
 
-            Ok(Vec::new())
+            Ok(None)
         }
     }
 
@@ -82,39 +83,27 @@ where
 
 /// Internal routine to process commands from a [WebsocketHandler] callback.
 async fn websocket_process_commands<T, S>(
-    commands: Vec<WebsocketCommand>,
+    commands: WebsocketCommands,
     handler: &mut T,
     stream: &mut WebSocketStream<S>,
 ) where
     T: WebsocketHandler + Send + 'static,
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    for command in &commands {
-        match command {
-            WebsocketCommand::Close((close_code, reason)) => {
-                if let Err(error) = stream
-                    .close(Some(CloseFrame {
-                        code: *close_code,
-                        reason: reason.into(),
-                    }))
-                    .await
-                {
-                    handler.terminate(error_to_reason(&error)).await;
+    let mut close_command: Option<WebsocketCommand> = None;
 
-                    return Process::exit(Process::current(), error_to_reason(&error));
-                } else {
-                    return Process::exit(Process::current(), ExitReason::Normal);
-                }
-            }
-            _ => {
-                // No other special commands to handle.
+    let sends = commands.buffer.into_iter().filter_map(|command| {
+        if close_command.is_some() {
+            return None;
+        }
+
+        match command {
+            WebsocketCommand::Send(message) => Some(Ok(message)),
+            WebsocketCommand::Close(_, _) => {
+                close_command = Some(command);
+                None
             }
         }
-    }
-
-    let sends = commands.into_iter().filter_map(|command| match command {
-        WebsocketCommand::Send(message) => Some(Ok(message)),
-        _ => None,
     });
 
     let mut sends = stream::iter(sends);
@@ -123,6 +112,22 @@ async fn websocket_process_commands<T, S>(
         handler.terminate(error_to_reason(&error)).await;
 
         Process::exit(Process::current(), error_to_reason(&error))
+    }
+
+    if let Some(WebsocketCommand::Close(code, reason)) = close_command {
+        if let Err(error) = stream
+            .close(Some(CloseFrame {
+                code,
+                reason: reason.into(),
+            }))
+            .await
+        {
+            handler.terminate(error_to_reason(&error)).await;
+
+            Process::exit(Process::current(), error_to_reason(&error));
+        } else {
+            Process::exit(Process::current(), ExitReason::Normal);
+        }
     }
 }
 
@@ -138,7 +143,9 @@ where
 
     match handler.websocket_init().await {
         Ok(commands) => {
-            websocket_process_commands(commands, &mut handler, &mut stream).await;
+            if let Some(commands) = commands {
+                websocket_process_commands(commands, &mut handler, &mut stream).await;
+            }
         }
         Err(reason) => {
             return Process::exit(Process::current(), reason);
@@ -150,7 +157,9 @@ where
             message = Process::receive::<T::Message>() => {
                 match handler.websocket_info(message).await {
                     Ok(commands) => {
-                        websocket_process_commands(commands, &mut handler, &mut stream).await;
+                        if let Some(commands) = commands {
+                            websocket_process_commands(commands, &mut handler, &mut stream).await;
+                        }
                     }
                     Err(reason) => {
                         handler.terminate(reason.clone()).await;
@@ -186,7 +195,9 @@ where
 
                         match handler.websocket_handle(message).await {
                             Ok(commands) => {
-                                websocket_process_commands(commands, &mut handler, &mut stream).await;
+                                if let Some(commands) = commands {
+                                    websocket_process_commands(commands, &mut handler, &mut stream).await;
+                                }
                             }
                             Err(reason) => {
                                 handler.terminate(reason.clone()).await;

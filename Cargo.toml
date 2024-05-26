@@ -18,6 +18,7 @@ sha2 = "0.10"
 pin-project-lite = "0.2"
 bincode = "2.0.0-rc.3"
 pingora-timeout = "0.2"
+smallvec = "1.13"
 bytes = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive", "std"] }
 serde_json = { version = "1.0", default-features = false, features = ["std"] }
@@ -29,9 +30,9 @@ futures-util = { version = "0.3", default-features = false, features = ["std", "
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = "0.3"
 
-hydra-macros = { version = "0.1.7", path = "./hydra-macros" }
-hydra-dashmap = { version = "0.1.7", path = "./hydra-dashmap" }
-hydra = { version = "0.1.7", path = "./hydra" }
+hydra-macros = { version = "0.1.8", path = "./hydra-macros" }
+hydra-dashmap = { version = "0.1.8", path = "./hydra-dashmap" }
+hydra = { version = "0.1.8", path = "./hydra" }
 
 [profile.release]
 lto = "fat"

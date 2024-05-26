@@ -1,28 +1,57 @@
+use smallvec::SmallVec;
+
 use crate::CloseCode;
 use crate::WebsocketMessage;
 
-/// A command returned from a websocket callback.
-pub enum WebsocketCommand {
-    /// A command to send a message.
+/// Internal websocket command representation.
+pub(crate) enum WebsocketCommand {
     Send(WebsocketMessage),
-    /// A command to close a websocket.
-    Close((CloseCode, String)),
+    Close(CloseCode, String),
 }
 
-impl WebsocketCommand {
+/// A command buffer returned from a websocket callback.
+pub struct WebsocketCommands {
+    pub(crate) buffer: SmallVec<[WebsocketCommand; 6]>,
+}
+
+impl WebsocketCommands {
+    /// Constructs a new websocket command buffer.
+    pub fn new() -> Self {
+        Self {
+            buffer: SmallVec::new(),
+        }
+    }
+
+    /// Constructs a new websocket command buffer to send `message`.
+    pub fn with_send<T: Into<WebsocketMessage>>(message: T) -> Self {
+        let mut result = Self::new();
+
+        result.send(message);
+        result
+    }
+
+    /// Constructs a new websocket command buffer to close the websocket gracefully.
+    pub fn with_close<T: Into<String>>(code: CloseCode, reason: T) -> Self {
+        let mut result = Self::new();
+
+        result.close(code, reason);
+        result
+    }
+
     /// Sends the message to the websocket client.
-    pub fn send<T: Into<WebsocketMessage>>(message: T) -> Self {
-        Self::Send(message.into())
+    pub fn send<T: Into<WebsocketMessage>>(&mut self, message: T) {
+        self.buffer.push(WebsocketCommand::Send(message.into()));
     }
 
     /// Gracefully close the websocket with the given `code` and `reason`.
-    pub fn close<T: Into<String>>(code: CloseCode, reason: T) -> Self {
-        Self::Close((code, reason.into()))
+    pub fn close<T: Into<String>>(&mut self, code: CloseCode, reason: T) {
+        self.buffer
+            .push(WebsocketCommand::Close(code, reason.into()));
     }
 }
 
-impl From<WebsocketMessage> for WebsocketCommand {
-    fn from(value: WebsocketMessage) -> Self {
-        Self::Send(value)
+impl Default for WebsocketCommands {
+    fn default() -> Self {
+        Self::new()
     }
 }

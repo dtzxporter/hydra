@@ -7,7 +7,7 @@ use hydra::GenServerOptions;
 use hydra::Pid;
 use hydra::Process;
 
-use hydra_websockets::WebsocketCommand;
+use hydra_websockets::WebsocketCommands;
 use hydra_websockets::WebsocketHandler;
 use hydra_websockets::WebsocketMessage;
 use hydra_websockets::WebsocketRequest;
@@ -31,17 +31,17 @@ impl WebsocketHandler for MyWebsocketHandler {
     async fn websocket_handle(
         &mut self,
         message: WebsocketMessage,
-    ) -> Result<Vec<WebsocketCommand>, ExitReason> {
+    ) -> Result<Option<WebsocketCommands>, ExitReason> {
         match message {
             WebsocketMessage::Text(text) => {
                 tracing::info!(handler = ?Process::current(), message = ?text, "Got message");
 
                 // Echo the command back to the client.
-                Ok(vec![WebsocketCommand::send(text)])
+                Ok(Some(WebsocketCommands::with_send(text)))
             }
             _ => {
                 // Hydra websockets automatically responds to ping requests.
-                Ok(vec![])
+                Ok(None)
             }
         }
     }
