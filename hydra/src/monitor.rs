@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use dashmap::DashMap;
+use hydra_dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 

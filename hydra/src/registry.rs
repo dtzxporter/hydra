@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use dashmap::DashMap;
+use hydra_dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 

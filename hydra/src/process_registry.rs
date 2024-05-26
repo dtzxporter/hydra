@@ -1,5 +1,5 @@
-use dashmap::mapref::entry::Entry;
-use dashmap::DashMap;
+use hydra_dashmap::mapref::entry::Entry;
+use hydra_dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 
