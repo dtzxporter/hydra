@@ -72,7 +72,9 @@ pub use system_message::*;
 pub use task::*;
 pub use timeout::*;
 
+#[cfg(feature = "macros")]
 pub use hydra_macros::main;
+#[cfg(feature = "macros")]
 pub use hydra_macros::test;
 
 pub(crate) use alias::*;
