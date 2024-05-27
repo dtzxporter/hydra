@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.10
+
+### Fixed
+- Fixed default features being forced when using websockets crate.
+
 # 0.1.9
 
 ### Changed
