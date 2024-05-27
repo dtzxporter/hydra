@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.11
+
+### Fixed
+- Fixed issue building without the macros feature in hydra.
+
 # 0.1.10
 
 ### Fixed
