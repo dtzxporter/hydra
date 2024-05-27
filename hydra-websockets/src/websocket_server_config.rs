@@ -6,6 +6,8 @@ use std::time::Duration;
 pub struct WebsocketServerConfig {
     pub(crate) address: SocketAddr,
     pub(crate) handshake_timeout: Option<Duration>,
+    pub(crate) max_message_size: Option<usize>,
+    pub(crate) max_frame_size: Option<usize>,
     #[cfg(feature = "native-tls")]
     pub(crate) tls_pkcs12_der: Option<Vec<u8>>,
     #[cfg(feature = "native-tls")]
@@ -18,10 +20,17 @@ pub struct WebsocketServerConfig {
 
 impl WebsocketServerConfig {
     /// Constructs a new [WebsocketServerConfig] with the given address to listen on.
-    pub const fn new(address: SocketAddr) -> Self {
+    pub fn new(address: SocketAddr) -> Self {
+        use tokio_tungstenite::tungstenite;
+        use tungstenite::protocol::*;
+
+        let defaults = WebSocketConfig::default();
+
         Self {
             address,
             handshake_timeout: None,
+            max_message_size: defaults.max_message_size,
+            max_frame_size: defaults.max_frame_size,
             #[cfg(feature = "native-tls")]
             tls_pkcs12_der: None,
             #[cfg(feature = "native-tls")]
@@ -38,6 +47,23 @@ impl WebsocketServerConfig {
     /// When tls is enabled, this time includes the tls handshake as well.
     pub const fn handshake_timeout(mut self, timeout: Duration) -> Self {
         self.handshake_timeout = Some(timeout);
+        self
+    }
+
+    /// Sets the maximum size of an incoming message. `None` means no size limit. The default value is 64 MiB
+    /// which should be reasonably big for all normal use-cases but small enough to prevent
+    /// memory eating by a malicious user.
+    pub const fn max_message_size(mut self, size: Option<usize>) -> Self {
+        self.max_message_size = size;
+        self
+    }
+
+    /// Sets the maximum size of a single incoming message frame. `None` means no size limit. The limit is for
+    /// frame payload NOT including the frame header. The default value is 16 MiB which should
+    /// be reasonably big for all normal use-cases but small enough to prevent memory eating
+    /// by a malicious user.
+    pub const fn max_frame_size(mut self, size: Option<usize>) -> Self {
+        self.max_frame_size = size;
         self
     }
 

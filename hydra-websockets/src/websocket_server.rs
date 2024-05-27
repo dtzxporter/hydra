@@ -1,7 +1,6 @@
 use std::io::ErrorKind;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::time::Duration;
 
 #[cfg(feature = "native-tls")]
 use std::sync::Arc;
@@ -10,10 +9,11 @@ use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio::net::TcpListener;
 
-use tokio_tungstenite::accept_hdr_async;
+use tokio_tungstenite::accept_hdr_async_with_config;
 use tokio_tungstenite::tungstenite;
 
 use tungstenite::handshake::server::ErrorResponse;
+use tungstenite::protocol::WebSocketConfig;
 
 #[cfg(feature = "native-tls")]
 use tokio_native_tls::TlsAcceptor;
@@ -91,7 +91,7 @@ where
 }
 
 /// Internal [WebsocketServer] accept routine.
-async fn server_accept<T, S>(stream: S, address: SocketAddr, timeout: Option<Duration>)
+async fn server_accept<T, S>(stream: S, address: SocketAddr, config: WebsocketServerConfig)
 where
     T: WebsocketHandler + Send + 'static,
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -108,9 +108,21 @@ where
         Err(reason) => Err(ErrorResponse::new(Some(format!("{:?}", reason)))),
     };
 
-    let accept = match timeout {
-        Some(timeout) => Process::timeout(timeout, accept_hdr_async(stream, callback)).await,
-        None => Ok(accept_hdr_async(stream, callback).await),
+    let ws_config = WebSocketConfig {
+        max_message_size: config.max_message_size,
+        max_frame_size: config.max_frame_size,
+        ..Default::default()
+    };
+
+    let accept = match config.handshake_timeout {
+        Some(timeout) => {
+            Process::timeout(
+                timeout,
+                accept_hdr_async_with_config(stream, callback, Some(ws_config)),
+            )
+            .await
+        }
+        None => Ok(accept_hdr_async_with_config(stream, callback, Some(ws_config)).await),
     };
 
     let stream = match accept {
@@ -128,7 +140,7 @@ where
         }
         Err(_) => {
             #[cfg(feature = "tracing")]
-            tracing::error!(timeout = ?timeout, address = ?address, "Websocket accept timeout");
+            tracing::error!(timeout = ?config.handshake_timeout, address = ?address, "Websocket accept timeout");
             return;
         }
     };
@@ -149,22 +161,24 @@ async fn server_accept_tls<T, S>(
     tls: Arc<TlsAcceptor>,
     stream: S,
     address: SocketAddr,
-    timeout: Option<Duration>,
+    mut config: WebsocketServerConfig,
 ) where
     T: WebsocketHandler + Send + 'static,
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let started = std::time::Instant::now();
 
-    let accept = match timeout {
+    let accept = match config.handshake_timeout {
         Some(timeout) => Process::timeout(timeout, tls.accept(stream)).await,
         None => Ok(tls.accept(stream).await),
     };
 
-    let timeout = timeout.map(|timeout| timeout - started.elapsed().min(timeout));
+    if let Some(timeout) = config.handshake_timeout.as_mut() {
+        *timeout -= started.elapsed().min(*timeout)
+    }
 
     match accept {
-        Ok(Ok(stream)) => server_accept::<T, _>(stream, address, timeout).await,
+        Ok(Ok(stream)) => server_accept::<T, _>(stream, address, config).await,
         Ok(Err(error)) => {
             #[cfg(feature = "tracing")]
             tracing::error!(error = ?error, address = ?address, "Failed to accept tls connection");
@@ -174,7 +188,7 @@ async fn server_accept_tls<T, S>(
         }
         Err(_) => {
             #[cfg(feature = "tracing")]
-            tracing::error!(timeout = ?timeout, address = ?address, "Websocket accept tls timeout");
+            tracing::error!(timeout = ?config.handshake_timeout, address = ?address, "Websocket accept tls timeout");
         }
     };
 }
@@ -193,12 +207,12 @@ where
         use tokio_native_tls::TlsAcceptor;
 
         let identity = if let (Some(der), Some(password)) =
-            (config.tls_pkcs12_der, config.tls_pkcs12_password)
+            (&config.tls_pkcs12_der, &config.tls_pkcs12_password)
         {
-            Identity::from_pkcs12(&der, password.as_str())
+            Identity::from_pkcs12(der, password.as_str())
                 .expect("Failed to parse pkcs12 certificate!")
-        } else if let (Some(pem), Some(key)) = (config.tls_pkcs8_pem, config.tls_pkcs8_key) {
-            Identity::from_pkcs8(&pem, &key).expect("Failed to parse pkcs8 certificate!")
+        } else if let (Some(pem), Some(key)) = (&config.tls_pkcs8_pem, &config.tls_pkcs8_key) {
+            Identity::from_pkcs8(pem, key).expect("Failed to parse pkcs8 certificate!")
         } else {
             panic!("Feature 'native-tls' enabled without providing a tls certificate!");
         };
@@ -222,15 +236,11 @@ where
                     tls.clone(),
                     stream,
                     address,
-                    config.handshake_timeout,
+                    config.clone(),
                 ));
 
                 #[cfg(not(feature = "native-tls"))]
-                Process::spawn(server_accept::<T, _>(
-                    stream,
-                    address,
-                    config.handshake_timeout,
-                ));
+                Process::spawn(server_accept::<T, _>(stream, address, config.clone()));
             }
             Err(error) => {
                 #[cfg(feature = "tracing")]

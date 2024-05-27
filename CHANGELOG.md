@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.13
+
+### Added
+- Expose configuration values for maximum inbound message sizes from clients.
+
 # 0.1.12
 
 ### Fixed
