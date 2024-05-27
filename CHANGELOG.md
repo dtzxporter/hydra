@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.12
+
+### Fixed
+- Actually fix macro build issue...
+
 # 0.1.11
 
 ### Fixed

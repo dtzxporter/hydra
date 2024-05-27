@@ -30,9 +30,9 @@ futures-util = { version = "0.3", default-features = false, features = ["std", "
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = "0.3"
 
-hydra-macros = { version = "0.1.11", path = "./hydra-macros" }
-hydra-dashmap = { version = "0.1.11", path = "./hydra-dashmap" }
-hydra = { version = "0.1.11", path = "./hydra", default-features = false }
+hydra-macros = { version = "0.1.12", path = "./hydra-macros" }
+hydra-dashmap = { version = "0.1.12", path = "./hydra-dashmap" }
+hydra = { version = "0.1.12", path = "./hydra", default-features = false }
 
 [profile.release]
 lto = "fat"
