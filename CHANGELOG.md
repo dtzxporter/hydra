@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.9
+
+### Changed
+- Reworked semaphore api so that we can create an owned semaphore that works in dynamic environments (not static).
+
 # 0.1.8
 
 ### Changed
