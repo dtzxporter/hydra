@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.17
+
+### Fixed
+- Fixed issue initializing websocket handlers.
+
 # 0.1.16
 
 ### Changed

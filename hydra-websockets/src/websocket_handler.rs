@@ -137,10 +137,6 @@ where
     T: WebsocketHandler + Send + 'static,
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    if let Err(reason) = handler.websocket_init().await {
-        return Process::exit(Process::current(), reason);
-    }
-
     match handler.websocket_init().await {
         Ok(commands) => {
             if let Some(commands) = commands {

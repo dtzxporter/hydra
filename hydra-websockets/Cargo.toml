@@ -1,6 +1,6 @@
 [package]
 name = "hydra-websockets"
-version = "0.1.16"
+version = "0.1.17"
 edition = "2021"
 readme = "./README.md"
 license.workspace = true
