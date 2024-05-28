@@ -1,3 +1,6 @@
+#[cfg(not(any(feature = "json")))]
+compile_error!("You must enable one of the codec features to use hydra: [\"json\"].");
+
 mod alias;
 mod application;
 mod argument_error;
