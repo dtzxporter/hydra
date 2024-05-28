@@ -107,15 +107,15 @@ pub trait Application: Sized + Send + 'static {
                                     if epid == pid {
                                         if ereason.is_custom() && ereason != "shutdown" {
                                             #[cfg(feature = "tracing")]
-                                            tracing::error!(reason = ?ereason, supervisor = ?epid, "Application supervisor has terminated");
+                                            tracing::error!(reason = ?ereason, supervisor = ?pid, "Application supervisor has terminated");
                                         } else {
                                             #[cfg(feature = "tracing")]
-                                            tracing::info!(reason = ?ereason, supervisor = ?epid, "Application supervisor has exited");
+                                            tracing::info!(reason = ?ereason, supervisor = ?pid, "Application supervisor has exited");
                                         }
                                         break;
                                     } else if spid.is_some_and(|spid| spid == epid) {
                                         #[cfg(feature = "tracing")]
-                                        tracing::info!(reason = ?ereason, supervisor = ?epid, timeout = ?Self::GRACEFUL_SHUTDOWN_TIMEOUT, "Application starting graceful shutdown");
+                                        tracing::info!(reason = ?ereason, supervisor = ?pid, timeout = ?Self::GRACEFUL_SHUTDOWN_TIMEOUT, "Application starting graceful shutdown");
 
                                         Process::exit(pid, ExitReason::from("shutdown"));
                                         Process::send_after(Process::current(), ShutdownTimeout, Self::GRACEFUL_SHUTDOWN_TIMEOUT);
