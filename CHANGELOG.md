@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.16
+
+### Changed
+- Removed json feature, hydra provides the best case codec for the internal transport.
+
 # 0.1.15
 
 ### Fixed

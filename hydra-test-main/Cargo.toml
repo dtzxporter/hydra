@@ -5,6 +5,6 @@ edition = "2021"
 publish = false
 
 [dependencies]
-hydra = { path = "../hydra", features = ["json"] }
+hydra = { path = "../hydra", default-features = false, features = ["tracing", "macros"] }
 
 serde.workspace = true
