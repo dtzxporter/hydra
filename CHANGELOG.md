@@ -3,8 +3,10 @@
 ### Added
 
 ### Changed
+- Compile error if the user doesn't enable a codec feature.
 
 ### Fixed
+- Fixed incorrect logging of the supervisor pid when applications shutdown.
 
 # 0.1.13
 
