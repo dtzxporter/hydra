@@ -3,6 +3,12 @@
 ### Added
 
 ### Changed
+
+### Fixed
+
+# 0.1.14
+
+### Changed
 - Compile error if the user doesn't enable a codec feature.
 
 ### Fixed
