@@ -1,6 +1,6 @@
 [package]
 name = "hydra-dashmap"
-version = "0.1.14"
+version = "0.1.15"
 edition = "2021"
 readme = "./README.md"
 license.workspace = true
