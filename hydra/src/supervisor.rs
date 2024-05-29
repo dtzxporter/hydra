@@ -335,6 +335,9 @@ impl Supervisor {
                     #[cfg(feature = "tracing")]
                     tracing::error!(reason = ?reason, child_id = ?self.children[index].spec.id, "Start error");
 
+                    #[cfg(not(feature = "tracing"))]
+                    let _ = reason;
+
                     return Err(ExitReason::from("failed_to_start_child"));
                 }
             }
@@ -559,6 +562,9 @@ impl Supervisor {
                         #[cfg(feature = "tracing")]
                         tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error");
 
+                        #[cfg(not(feature = "tracing"))]
+                        let _ = reason;
+
                         self.children[index].restarting = true;
 
                         Supervisor::cast(Process::current(), TryAgainRestartId(id));
@@ -572,6 +578,9 @@ impl Supervisor {
                     #[cfg(feature = "tracing")]
                     tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error");
 
+                    #[cfg(not(feature = "tracing"))]
+                    let _ = reason;
+
                     self.children[index].restarting = true;
 
                     Supervisor::cast(Process::current(), TryAgainRestartId(id));
@@ -583,6 +592,9 @@ impl Supervisor {
 
                     #[cfg(feature = "tracing")]
                     tracing::error!(reason = ?reason, child_id = ?id, child_pid = ?self.children[index].pid, "Start error");
+
+                    #[cfg(not(feature = "tracing"))]
+                    let _ = reason;
 
                     self.children[index].restarting = true;
 

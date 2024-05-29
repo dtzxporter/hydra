@@ -1,6 +1,5 @@
 use std::future::Future;
 
-use std::sync::Once;
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -58,6 +57,8 @@ pub trait Application: Sized + Send + 'static {
 
         #[cfg(feature = "tracing")]
         if Self::TRACING_SUBSCRIBE {
+            use std::sync::Once;
+
             static TRACING_SUBSCRIBE_ONCE: Once = Once::new();
 
             TRACING_SUBSCRIBE_ONCE.call_once(|| {
@@ -65,6 +66,7 @@ pub trait Application: Sized + Send + 'static {
             });
         }
 
+        #[allow(unused_mut)]
         let mut prev_hook: Option<_> = None;
 
         #[cfg(feature = "tracing")]

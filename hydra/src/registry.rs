@@ -429,6 +429,9 @@ impl Registry {
         #[cfg(feature = "tracing")]
         tracing::info!(reason = ?reason, child_key = ?key, child_pid = ?pid, "Removed registered process");
 
+        #[cfg(not(feature = "tracing"))]
+        let _ = reason;
+
         REGISTRY.alter(&self.name, |_, value| {
             value.remove_if(&key, |_, value| *value == pid);
             value

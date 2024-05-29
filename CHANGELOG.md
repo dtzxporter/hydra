@@ -13,6 +13,9 @@
 - Added `SupervisorOptions` for Supervisor::start/start_link/child_spec.
 - Ability to customize the process name of the registry (use at own risk).
 
+### Fixed
+- Fixed warnings when tracing feature is disabled.
+
 # 0.1.18
 
 ### Added
