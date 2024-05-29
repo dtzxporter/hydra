@@ -197,8 +197,12 @@ pub trait GenServer: Sized + Send + 'static {
     /// It is unknown whether the destination server successfully handled the request.
     ///
     /// See [Process::send] for performance trade-offs.
-    fn cast_after<T: Into<Dests>>(servers: T, message: Self::Message, duration: Duration) {
-        Process::send_after(servers, GenServerMessage::Cast(message), duration);
+    fn cast_after<T: Into<Dests>>(
+        servers: T,
+        message: Self::Message,
+        duration: Duration,
+    ) -> Reference {
+        Process::send_after(servers, GenServerMessage::Cast(message), duration)
     }
 
     /// Makes a synchronous call to the `server` and waits for it's reply.

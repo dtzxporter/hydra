@@ -24,6 +24,7 @@ use crate::monitor_install;
 use crate::monitor_process_down;
 use crate::node_process_send_exit;
 use crate::process_alive;
+use crate::process_destroy_timer;
 use crate::process_drop;
 use crate::process_exit;
 use crate::process_flags;
@@ -33,6 +34,7 @@ use crate::process_name_list;
 use crate::process_name_lookup;
 use crate::process_name_remove;
 use crate::process_register;
+use crate::process_register_timer;
 use crate::process_send;
 use crate::process_set_exit_reason;
 use crate::process_set_flags;
@@ -158,13 +160,30 @@ impl Process {
     /// ```ignore
     /// Process::send_after(pid, "hello world!", Duration::from_secs(5));
     /// ```
-    pub fn send_after<D: Into<Dests>, M: Receivable>(dest: D, message: M, duration: Duration) {
+    pub fn send_after<D: Into<Dests>, M: Receivable>(
+        dest: D,
+        message: M,
+        duration: Duration,
+    ) -> Reference {
         let dest = dest.into();
 
-        tokio::spawn(async move {
+        let reference = Reference::new();
+
+        let handle = tokio::spawn(async move {
             Process::sleep(duration).await;
             Process::send(dest, message);
+
+            process_destroy_timer(reference);
         });
+
+        process_register_timer(reference, handle);
+
+        reference
+    }
+
+    /// Cancels a timer.
+    pub fn cancel_timer(timer: Reference) {
+        process_destroy_timer(timer);
     }
 
     /// Creates a receiver with advanced filtering options from the current processes mailbox.

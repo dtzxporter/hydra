@@ -3,6 +3,8 @@ use hydra_dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 
+use tokio::task::JoinHandle;
+
 use crate::ArgumentError;
 use crate::ExitReason;
 use crate::Pid;
@@ -10,12 +12,15 @@ use crate::ProcessFlags;
 use crate::ProcessItem;
 use crate::ProcessRegistration;
 use crate::ProcessSend;
+use crate::Reference;
 use crate::SystemMessage;
 
 /// A collection of process id -> process registration.
 static PROCESS_REGISTRY: Lazy<DashMap<u64, ProcessRegistration>> = Lazy::new(DashMap::new);
 /// A collection of registered named processes.
 static PROCESS_NAMES: Lazy<DashMap<String, u64>> = Lazy::new(DashMap::new);
+/// A collection of process timers.
+static PROCESS_TIMERS: Lazy<DashMap<u64, JoinHandle<()>>> = Lazy::new(DashMap::new);
 
 /// Checks for the given `pid` and calls the given `callback` with the result if it exists or not.
 ///
@@ -234,4 +239,16 @@ pub fn process_name_list() -> Vec<String> {
         .iter()
         .map(|value| value.key().to_owned())
         .collect()
+}
+
+/// Registers a timer.
+pub fn process_register_timer(timer: Reference, handle: JoinHandle<()>) {
+    PROCESS_TIMERS.insert(timer.id(), handle);
+}
+
+/// Unregisters and kills a timer.
+pub fn process_destroy_timer(timer: Reference) {
+    if let Some((_, handle)) = PROCESS_TIMERS.remove(&timer.id()) {
+        handle.abort();
+    }
 }
