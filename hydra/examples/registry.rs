@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use hydra::ProcessFlags;
-use hydra::Shutdown;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -12,17 +10,20 @@ use hydra::GenServer;
 use hydra::GenServerOptions;
 use hydra::Pid;
 use hydra::Process;
+use hydra::ProcessFlags;
 use hydra::Registry;
 use hydra::RegistryKey;
+use hydra::RegistryOptions;
+use hydra::Shutdown;
 use hydra::SupervisionStrategy;
 use hydra::Supervisor;
 
 async fn test_registry() {
-    Registry::start("space-registry", "my awesome space id")
+    Registry::start_process("space-registry", "my awesome space id")
         .await
         .expect("Failed to start process");
 
-    Registry::start("space-registry", "my lame space id")
+    Registry::start_process("space-registry", "my lame space id")
         .await
         .expect("Failed to start process");
 
@@ -65,7 +66,7 @@ impl Application for MyApplication {
                     MySpace::new(id).start_link(GenServerOptions::new())
                 })
                 .with_shutdown(Shutdown::Infinity)
-                .child_spec(GenServerOptions::new())
+                .child_spec(RegistryOptions::new())
                 .id("space-registry"),
             ChildSpec::new("test-registry")
                 .start(move || async { Ok(Process::spawn(test_registry())) }),

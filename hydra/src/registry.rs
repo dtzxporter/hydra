@@ -19,13 +19,13 @@ use crate::Dest;
 use crate::ExitReason;
 use crate::From;
 use crate::GenServer;
-use crate::GenServerOptions;
 use crate::Message;
 use crate::Node;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
 use crate::Reference;
+use crate::RegistryOptions;
 use crate::Shutdown;
 use crate::SystemMessage;
 
@@ -191,7 +191,7 @@ impl Registry {
     /// Attempts to start a process.
     ///
     /// If the process is already running, an error is returned.
-    pub async fn start<T: Into<Dest>, N: Into<RegistryKey>>(
+    pub async fn start_process<T: Into<Dest>, N: Into<RegistryKey>>(
         registry: T,
         key: N,
     ) -> Result<Pid, RegistryError> {
@@ -209,7 +209,7 @@ impl Registry {
     /// If the process is trapping exits, it will still run, but be unregistered from this registry.
     ///
     /// If the process is not registered an error is returned.
-    pub async fn stop<T: Into<Dest>, N: Into<RegistryKey>>(
+    pub async fn stop_process<T: Into<Dest>, N: Into<RegistryKey>>(
         registry: T,
         key: N,
     ) -> Result<(), RegistryError> {
@@ -286,18 +286,31 @@ impl Registry {
         }
     }
 
+    /// Create a registry proces not linked to a supervision tree.
+    pub async fn start(self, mut options: RegistryOptions) -> Result<Pid, ExitReason> {
+        if options.name.is_none() {
+            options = options.name(self.name.clone());
+        }
+
+        GenServer::start(self, options.into()).await
+    }
+
     /// Creates a registry process as part of a supervision tree.
     ///
     /// For example, this function ensures that the registry is linked to the calling process (its supervisor).
-    pub async fn start_link(self, mut options: GenServerOptions) -> Result<Pid, ExitReason> {
-        options = options.name(self.name.clone());
+    pub async fn start_link(self, mut options: RegistryOptions) -> Result<Pid, ExitReason> {
+        if options.name.is_none() {
+            options = options.name(self.name.clone());
+        }
 
-        GenServer::start_link(self, options).await
+        GenServer::start_link(self, options.into()).await
     }
 
     /// Builds a child specification for this [Registry] process.
-    pub fn child_spec(self, mut options: GenServerOptions) -> ChildSpec {
-        options = options.name(self.name.clone());
+    pub fn child_spec(self, mut options: RegistryOptions) -> ChildSpec {
+        if options.name.is_none() {
+            options = options.name(self.name.clone());
+        }
 
         ChildSpec::new("Registry")
             .start(move || self.clone().start_link(options.clone()))
