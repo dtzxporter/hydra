@@ -6,6 +6,14 @@
 
 ### Fixed
 
+# 0.1.18
+
+### Added
+- Added a hash ring implementation.
+
+### Changed
+- Updated documentation for `OwnedSemaphore`.
+
 # 0.1.17
 
 ### Fixed
