@@ -33,7 +33,7 @@ pub struct HashRing<T, S = RandomState> {
 }
 
 impl<T> HashRing<T> {
-    /// Constructs a new instance of [HashRing] with a depth of 1.
+    /// Constructs a new instance of [HashRing].
     pub fn new() -> Self {
         Self {
             hash_builder: RandomState::new(),
