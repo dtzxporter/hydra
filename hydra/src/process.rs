@@ -33,6 +33,7 @@ use crate::process_list;
 use crate::process_name_list;
 use crate::process_name_lookup;
 use crate::process_name_remove;
+use crate::process_read_timer;
 use crate::process_register;
 use crate::process_register_timer;
 use crate::process_send;
@@ -176,14 +177,21 @@ impl Process {
             process_destroy_timer(reference);
         });
 
-        process_register_timer(reference, handle);
+        process_register_timer(reference, duration, handle);
 
         reference
     }
 
-    /// Cancels a timer.
+    /// Cancels a timer created by `send_after`.
     pub fn cancel_timer(timer: Reference) {
         process_destroy_timer(timer);
+    }
+
+    /// Reads a timer created by `send_after`.
+    ///
+    /// It returns the time remaining until the timer expires.
+    pub fn read_timer(timer: Reference) -> Option<Duration> {
+        process_read_timer(timer)
     }
 
     /// Creates a receiver with advanced filtering options from the current processes mailbox.

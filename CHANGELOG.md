@@ -6,6 +6,12 @@
 
 ### Fixed
 
+# 0.1.20
+
+### Added
+- Method to cancel timers returned from `send_after`/`cast_after`.
+- Method to read timers returned from `send_after`/`cast_after`.
+
 # 0.1.19
 
 ### Changed

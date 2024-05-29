@@ -1,3 +1,6 @@
+use std::time::Duration;
+use std::time::Instant;
+
 use hydra_dashmap::mapref::entry::Entry;
 use hydra_dashmap::DashMap;
 
@@ -20,7 +23,7 @@ static PROCESS_REGISTRY: Lazy<DashMap<u64, ProcessRegistration>> = Lazy::new(Das
 /// A collection of registered named processes.
 static PROCESS_NAMES: Lazy<DashMap<String, u64>> = Lazy::new(DashMap::new);
 /// A collection of process timers.
-static PROCESS_TIMERS: Lazy<DashMap<u64, JoinHandle<()>>> = Lazy::new(DashMap::new);
+static PROCESS_TIMERS: Lazy<DashMap<u64, (Instant, JoinHandle<()>)>> = Lazy::new(DashMap::new);
 
 /// Checks for the given `pid` and calls the given `callback` with the result if it exists or not.
 ///
@@ -242,13 +245,27 @@ pub fn process_name_list() -> Vec<String> {
 }
 
 /// Registers a timer.
-pub fn process_register_timer(timer: Reference, handle: JoinHandle<()>) {
-    PROCESS_TIMERS.insert(timer.id(), handle);
+pub fn process_register_timer(timer: Reference, duration: Duration, handle: JoinHandle<()>) {
+    PROCESS_TIMERS.insert(timer.id(), (Instant::now() + duration, handle));
+}
+
+/// Reads a timer.
+pub fn process_read_timer(timer: Reference) -> Option<Duration> {
+    let time = PROCESS_TIMERS.get(&timer.id())?;
+
+    let now = Instant::now();
+    let timer = time.value().0;
+
+    if timer <= now {
+        Some(Duration::from_secs(0))
+    } else {
+        Some(timer - now)
+    }
 }
 
 /// Unregisters and kills a timer.
 pub fn process_destroy_timer(timer: Reference) {
-    if let Some((_, handle)) = PROCESS_TIMERS.remove(&timer.id()) {
+    if let Some((_, (_, handle))) = PROCESS_TIMERS.remove(&timer.id()) {
         handle.abort();
     }
 }
