@@ -4,6 +4,7 @@
 
 ### Changed
 - Added `RegistryOptions` for Registry::start/start_link/child_spec.
+- Added `SupervisorOptions` for Supervisor::start/start_link/child_spec.
 - Ability to customize the process name of the registry (use at own risk).
 
 ### Fixed

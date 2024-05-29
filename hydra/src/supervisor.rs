@@ -17,7 +17,6 @@ use crate::Dest;
 use crate::ExitReason;
 use crate::From;
 use crate::GenServer;
-use crate::GenServerOptions;
 use crate::Local;
 use crate::Message;
 use crate::Pid;
@@ -25,6 +24,7 @@ use crate::Process;
 use crate::ProcessFlags;
 use crate::Restart;
 use crate::Shutdown;
+use crate::SupervisorOptions;
 use crate::SystemMessage;
 
 /// A supervision child.
@@ -172,7 +172,7 @@ impl Supervisor {
     }
 
     /// Builds a child specification for this [Supervisor] process.
-    pub fn child_spec(self, options: GenServerOptions) -> ChildSpec {
+    pub fn child_spec(self, options: SupervisorOptions) -> ChildSpec {
         ChildSpec::new("Supervisor")
             .start(move || self.clone().start_link(options.clone()))
             .child_type(ChildType::Supervisor)
@@ -206,13 +206,20 @@ impl Supervisor {
         self
     }
 
+    /// Creates a supervisor process not apart of a supervision tree.
+    ///
+    /// This will not return until all of the child processes have been started.
+    pub async fn start(self, options: SupervisorOptions) -> Result<Pid, ExitReason> {
+        GenServer::start(self, options.into()).await
+    }
+
     /// Creates a supervisor process as part of a supervision tree.
     ///
     /// For example, this function ensures that the supervisor is linked to the calling process (its supervisor).
     ///
     /// This will not return until all of the child processes have been started.
-    pub async fn start_link(self, options: GenServerOptions) -> Result<Pid, ExitReason> {
-        GenServer::start_link(self, options).await
+    pub async fn start_link(self, options: SupervisorOptions) -> Result<Pid, ExitReason> {
+        GenServer::start_link(self, options.into()).await
     }
 
     /// Returns [SupervisorCounts] containing the counts for each of the different child specifications.

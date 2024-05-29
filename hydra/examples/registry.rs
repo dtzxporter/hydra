@@ -17,6 +17,7 @@ use hydra::RegistryOptions;
 use hydra::Shutdown;
 use hydra::SupervisionStrategy;
 use hydra::Supervisor;
+use hydra::SupervisorOptions;
 
 async fn test_registry() {
     Registry::start_process("space-registry", "my awesome space id")
@@ -75,7 +76,7 @@ impl Application for MyApplication {
         // Restart only the terminated child.
         Supervisor::with_children(children)
             .strategy(SupervisionStrategy::OneForOne)
-            .start_link(GenServerOptions::new())
+            .start_link(SupervisorOptions::new())
             .await
     }
 }

@@ -15,6 +15,7 @@ use hydra::Pid;
 use hydra::Process;
 use hydra::SupervisionStrategy;
 use hydra::Supervisor;
+use hydra::SupervisorOptions;
 
 #[derive(Debug, Serialize, Deserialize)]
 enum MyMessage {
@@ -36,7 +37,7 @@ impl Application for MyApplication {
         // Restart only the terminated child.
         Supervisor::with_children(children)
             .strategy(SupervisionStrategy::OneForOne)
-            .start_link(GenServerOptions::new())
+            .start_link(SupervisorOptions::new())
             .await
     }
 }
