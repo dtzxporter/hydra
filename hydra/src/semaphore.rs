@@ -25,8 +25,7 @@ pub struct Semaphore {
     inner: SemaphoreBase,
 }
 
-/// A semaphore maintains a set of permits. Permits are used to synchronize access to a shared resource.
-/// A semaphore differs from a mutex in that it can allow more than one concurrent caller to access the shared resource at a time.
+/// An owned semaphore is identical to a [Semaphore] except it can be owned by an actor and it's permits can still be shared externally.
 #[repr(transparent)]
 pub struct OwnedSemaphore {
     inner: Arc<SemaphoreBase>,
