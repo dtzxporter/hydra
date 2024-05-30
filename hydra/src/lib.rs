@@ -1,5 +1,6 @@
 mod alias;
 mod application;
+mod application_config;
 mod argument_error;
 mod call_error;
 mod catch_unwind;
@@ -47,6 +48,7 @@ mod task;
 mod timeout;
 
 pub use application::*;
+pub use application_config::*;
 pub use argument_error::*;
 pub use call_error::*;
 pub use child_spec::*;

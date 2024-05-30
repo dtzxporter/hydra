@@ -1,7 +1,5 @@
 use std::future::Future;
 
-use std::time::Duration;
-
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -9,6 +7,7 @@ use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 
+use crate::ApplicationConfig;
 use crate::ExitReason;
 use crate::Message;
 use crate::Pid;
@@ -27,22 +26,10 @@ enum ApplicationMessage {
 /// [Application] provides graceful shutdown by allowing you to link a process inside the call to `start`.
 /// The `run` call will only return once that process has terminated. It's recommended to link a supervisor.
 pub trait Application: Sized + Send + 'static {
-    /// Whether or not tracing will subscribe when you call `run`.
-    ///
-    /// This will install a global tracing subscriber with recommended settings for you.
-    #[cfg(feature = "tracing")]
-    const TRACING_SUBSCRIBE: bool = true;
-    /// Whether or not tracing will be used to catch panics globally.
-    ///
-    /// This will install a global panic hook that will log panics using `tracing`.
-    #[cfg(feature = "tracing")]
-    const TRACING_PANICS: bool = true;
-
-    /// Whether or not to listen for shutdown signals and allow the program to cleanup processes before closing.
-    const GRACEFUL_SHUTDOWN: bool = true;
-
-    /// The maximum amount of time to wait for the application to shutdown before exiting.
-    const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+    /// Override to change the application configuration defaults.
+    fn config() -> ApplicationConfig {
+        ApplicationConfig::default()
+    }
 
     /// Called when an application is starting. You should link a process here and return it's [Pid].
     ///
@@ -55,8 +42,10 @@ pub trait Application: Sized + Send + 'static {
     fn run(self) {
         use ApplicationMessage::*;
 
+        let config = Self::config();
+
         #[cfg(feature = "tracing")]
-        if Self::TRACING_SUBSCRIBE {
+        if config.tracing_subscribe {
             use std::sync::Once;
 
             static TRACING_SUBSCRIBE_ONCE: Once = Once::new();
@@ -70,7 +59,7 @@ pub trait Application: Sized + Send + 'static {
         let mut prev_hook: Option<_> = None;
 
         #[cfg(feature = "tracing")]
-        if Self::TRACING_PANICS {
+        if config.tracing_panics {
             prev_hook = Some(std::panic::take_hook());
 
             std::panic::set_hook(Box::new(panic_hook));
@@ -89,7 +78,7 @@ pub trait Application: Sized + Send + 'static {
                         #[cfg(feature = "tracing")]
                         tracing::info!(supervisor = ?pid, "Application supervisor has started");
 
-                        let spid = if Self::GRACEFUL_SHUTDOWN {
+                        let spid = if config.graceful_shutdown {
                             Some(Process::spawn_link(signal_handler()))
                         } else {
                             None
@@ -101,7 +90,7 @@ pub trait Application: Sized + Send + 'static {
                             match message {
                                 Message::User(ShutdownTimeout) => {
                                     #[cfg(feature = "tracing")]
-                                    tracing::error!(timeout = ?Self::GRACEFUL_SHUTDOWN_TIMEOUT, "Application failed to shutdown gracefully");
+                                    tracing::error!(timeout = ?config.graceful_shutdown_timeout, "Application failed to shutdown gracefully");
 
                                     Process::exit(pid, ExitReason::Kill);
                                 }
@@ -117,10 +106,10 @@ pub trait Application: Sized + Send + 'static {
                                         break;
                                     } else if spid.is_some_and(|spid| spid == epid) {
                                         #[cfg(feature = "tracing")]
-                                        tracing::info!(reason = ?ereason, supervisor = ?pid, timeout = ?Self::GRACEFUL_SHUTDOWN_TIMEOUT, "Application starting graceful shutdown");
+                                        tracing::info!(reason = ?ereason, supervisor = ?pid, timeout = ?config.graceful_shutdown_timeout, "Application starting graceful shutdown");
 
                                         Process::exit(pid, ExitReason::from("shutdown"));
-                                        Process::send_after(Process::current(), ShutdownTimeout, Self::GRACEFUL_SHUTDOWN_TIMEOUT);
+                                        Process::send_after(Process::current(), ShutdownTimeout, config.graceful_shutdown_timeout);
                                     }
                                 }
                                 _ => continue,
