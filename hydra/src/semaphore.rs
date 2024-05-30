@@ -9,7 +9,7 @@ pub struct SemaphorePermit<'a> {
     _permit: SemaphoreBasePermit<'a>,
 }
 
-/// Represents an owned permit to a [Semaphore].
+/// Represents an owned permit to a [OwnedSemaphore].
 pub struct OwnedSemaphorePermit {
     _permit: OwnedSemaphoreBasePermit,
 }
