@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.21
+
+### Changed
+- Added a nicer api for changing the application config.
+
 # 0.1.20
 
 ### Added
