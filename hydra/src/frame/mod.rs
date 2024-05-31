@@ -44,6 +44,9 @@ const FRAME_CONFIG: Configuration<LittleEndian, Fixint> = config::standard()
     .with_fixed_int_encoding()
     .with_little_endian();
 
+/// The size of the marker.
+const MARKER_LENGTH: usize = std::mem::size_of::<u32>();
+
 /// A frame value for the codec.
 #[derive(Debug, Encode, Decode)]
 pub enum Frame {
@@ -134,8 +137,13 @@ impl Encoder<Frame> for Codec {
     type Error = Error;
 
     fn encode(&mut self, item: Frame, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        bincode::encode_into_std_write(item, &mut dst.writer(), FRAME_CONFIG)
+        dst.put_u32_le(0);
+
+        let size = bincode::encode_into_std_write(item, &mut dst.writer(), FRAME_CONFIG)
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+        dst[0..MARKER_LENGTH].copy_from_slice(&(size as u32).to_le_bytes());
+
         Ok(())
     }
 }
@@ -145,15 +153,26 @@ impl Decoder for Codec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if src.is_empty() {
+        if src.len() < 4 {
             return Ok(None);
         }
 
-        let result = bincode::decode_from_slice(src, FRAME_CONFIG);
+        let mut length_marker = [0u8; MARKER_LENGTH];
+
+        length_marker.copy_from_slice(&src[0..MARKER_LENGTH]);
+
+        let length = u32::from_le_bytes(length_marker) as usize;
+
+        if src.len() < MARKER_LENGTH + length {
+            src.reserve(MARKER_LENGTH + length - src.len());
+            return Ok(None);
+        }
+
+        let result = bincode::decode_from_slice(&src[4..], FRAME_CONFIG);
 
         match result {
-            Ok((frame, length)) => {
-                src.advance(length);
+            Ok((frame, _)) => {
+                src.advance(MARKER_LENGTH + length);
                 Ok(Some(frame))
             }
             Err(DecodeError::UnexpectedEnd { additional }) => {

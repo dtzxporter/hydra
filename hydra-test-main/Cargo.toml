@@ -8,3 +8,4 @@ publish = false
 hydra = { path = "../hydra", default-features = false, features = ["tracing", "macros"] }
 
 serde.workspace = true
+tracing.workspace = true
