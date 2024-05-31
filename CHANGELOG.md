@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.22
+
+### Changed
+- Improved remote network protocol performance.
+
 # 0.1.21
 
 ### Changed
