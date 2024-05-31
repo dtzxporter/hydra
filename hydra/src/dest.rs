@@ -65,6 +65,15 @@ impl From<String> for Dest {
     }
 }
 
+impl<T> From<(String, T)> for Dest
+where
+    T: Into<Node>,
+{
+    fn from(value: (String, T)) -> Self {
+        Self::Named(value.0.into(), value.1.into())
+    }
+}
+
 impl<T> From<(&'static str, T)> for Dest
 where
     T: Into<Node>,
@@ -149,6 +158,15 @@ impl From<Reference> for Dests {
 impl From<&'static str> for Dests {
     fn from(value: &'static str) -> Self {
         Self::Dest(Dest::Named(value.into(), Node::Local))
+    }
+}
+
+impl<T> From<(String, T)> for Dests
+where
+    T: Into<Node>,
+{
+    fn from(value: (String, T)) -> Self {
+        Self::Dest(Dest::Named(value.0.into(), value.1.into()))
     }
 }
 
