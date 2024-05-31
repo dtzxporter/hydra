@@ -4,6 +4,7 @@ use std::time::Duration;
 use hydra::Message;
 use hydra::Node;
 use hydra::NodeOptions;
+use hydra::Pid;
 use hydra::Process;
 
 #[hydra::main]
@@ -23,9 +24,29 @@ async fn main() {
 
     println!("Nodes: {:?}", Node::list());
 
-    loop {
-        let message: Message<()> = Process::receive().await;
+    for i in 0..8 {
+        Process::spawn(async move {
+            let pid = Process::current();
+            let mut pid2: Option<Pid> = None;
 
-        println!("Got message: {:?}", message);
+            loop {
+                if let Some(pid2) = pid2 {
+                    Process::send(pid2, pid);
+                } else {
+                    Process::send(
+                        (format!("bench-receive{}", i), ("hydra-test-main", address)),
+                        pid,
+                    );
+                }
+
+                let pidd = Process::receive::<Pid>().await;
+
+                if let Message::User(pidd) = pidd {
+                    pid2 = Some(pidd);
+                }
+            }
+        });
     }
+
+    Process::sleep(Duration::from_secs(1000)).await;
 }
