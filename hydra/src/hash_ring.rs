@@ -1,17 +1,24 @@
 use std::hash::BuildHasher;
 use std::hash::Hash;
 use std::hash::RandomState;
-use std::sync::RwLock;
+use std::sync::Arc;
+use std::sync::Mutex;
+
+use arc_swap::ArcSwap;
 
 use hydra_dashmap::DashMap;
 
 /// Internal key, node pair.
-struct Node<T> {
+#[derive(Clone)]
+struct Node<T: Clone> {
     key: u64,
     node: T,
 }
 
-impl<T> Node<T> {
+impl<T> Node<T>
+where
+    T: Clone,
+{
     /// Constructs a new instance of [Node].
     pub const fn new(key: u64, node: T) -> Self {
         Self { key, node }
@@ -23,21 +30,23 @@ impl<T> Node<T> {
 /// Provides the following features:
 /// - Lookup optimized ring storage.
 /// - Key overrides that allow you to pin a key to a specific node.
-///
-/// In order to call `find_node`, `T` must implement `Clone`,
-/// this is to prevent blocking for too long and keep the ring as up to date as possible.
-pub struct HashRing<T, S = RandomState> {
+pub struct HashRing<T: Clone, S = RandomState> {
     hash_builder: S,
-    ring: RwLock<Vec<Node<T>>>,
+    ring: ArcSwap<Vec<Node<T>>>,
+    ring_lock: Mutex<()>,
     overrides: DashMap<u64, T>,
 }
 
-impl<T> HashRing<T> {
+impl<T> HashRing<T>
+where
+    T: Clone,
+{
     /// Constructs a new instance of [HashRing].
     pub fn new() -> Self {
         Self {
             hash_builder: RandomState::new(),
-            ring: RwLock::new(Vec::new()),
+            ring: ArcSwap::new(Arc::new(Vec::new())),
+            ring_lock: Mutex::new(()),
             overrides: DashMap::new(),
         }
     }
@@ -46,26 +55,42 @@ impl<T> HashRing<T> {
     pub fn add_node<K: Hash>(&self, key: K, node: T) -> Option<T> {
         let key = self.hash_key(key);
 
-        let mut ring = self.ring.write().unwrap();
+        let _ring_lock = self.ring_lock.lock().unwrap();
 
-        match ring.binary_search_by(|node| node.key.cmp(&key)) {
+        let mut new_ring: Vec<_> = self.ring.load().iter().cloned().collect();
+
+        match new_ring.binary_search_by(|node| node.key.cmp(&key)) {
             Ok(existing) => {
-                return Some(std::mem::replace(&mut ring[existing], Node::new(key, node)).node);
-            }
-            Err(index) => ring.insert(index, Node::new(key, node)),
-        }
+                let swapped = std::mem::replace(&mut new_ring[existing], Node::new(key, node));
 
-        None
+                self.ring.store(Arc::new(new_ring));
+
+                Some(swapped.node)
+            }
+            Err(index) => {
+                new_ring.insert(index, Node::new(key, node));
+
+                self.ring.store(Arc::new(new_ring));
+
+                None
+            }
+        }
     }
 
     /// Removes a node from the existing set of nodes.
     pub fn remove_node<K: Hash>(&self, key: K) -> Option<T> {
         let key = self.hash_key(key);
 
-        let mut ring = self.ring.write().unwrap();
+        let _ring_lock = self.ring_lock.lock().unwrap();
 
-        if let Ok(existing) = ring.binary_search_by(|node| node.key.cmp(&key)) {
-            return Some(ring.remove(existing).node);
+        let mut new_ring: Vec<_> = self.ring.load().iter().cloned().collect();
+
+        if let Ok(existing) = new_ring.binary_search_by(|node| node.key.cmp(&key)) {
+            let existing = new_ring.remove(existing);
+
+            self.ring.store(Arc::new(new_ring));
+
+            return Some(existing.node);
         }
 
         None
@@ -73,30 +98,52 @@ impl<T> HashRing<T> {
 
     /// Adds a collection of nodes to the existing set of nodes in the ring, replacing any existing entries if they exist.
     pub fn add_nodes<K: Hash, I: IntoIterator<Item = (K, T)>>(&self, nodes: I) {
-        let mut ring = self.ring.write().unwrap();
+        let _ring_lock = self.ring_lock.lock().unwrap();
+
+        let mut new_ring: Vec<_> = self.ring.load().iter().cloned().collect();
 
         for (key, node) in nodes.into_iter() {
             let key = self.hash_key(key);
 
-            match ring.binary_search_by(|node| node.key.cmp(&key)) {
+            match new_ring.binary_search_by(|node| node.key.cmp(&key)) {
                 Ok(existing) => {
-                    let _ = std::mem::replace(&mut ring[existing], Node::new(key, node));
+                    let _ = std::mem::replace(&mut new_ring[existing], Node::new(key, node));
                 }
-                Err(index) => ring.insert(index, Node::new(key, node)),
+                Err(index) => new_ring.insert(index, Node::new(key, node)),
             }
         }
+
+        self.ring.store(Arc::new(new_ring));
     }
 
     /// Replaces the nodes in the ring with a new set of nodes.
     pub fn set_nodes<K: Hash, I: IntoIterator<Item = (K, T)>>(&self, nodes: I) {
-        let mut ring = self.ring.write().unwrap();
+        let _ring_lock = self.ring_lock.lock().unwrap();
 
-        ring.clear();
-        ring.shrink_to_fit();
+        let nodes = nodes.into_iter();
+        let mut new_ring: Vec<Node<T>> = Vec::with_capacity(nodes.size_hint().0);
 
-        drop(ring);
+        for (key, node) in nodes {
+            let key = self.hash_key(key);
 
-        self.add_nodes(nodes);
+            match new_ring.binary_search_by(|node| node.key.cmp(&key)) {
+                Ok(existing) => {
+                    let _ = std::mem::replace(&mut new_ring[existing], Node::new(key, node));
+                }
+                Err(index) => new_ring.insert(index, Node::new(key, node)),
+            }
+        }
+
+        self.ring.store(Arc::new(new_ring));
+    }
+
+    /// Returns the node responsible for `key`. If there are no nodes in the ring, it will return `None`.
+    pub fn find_node<K: Hash>(&self, key: K) -> Option<T> {
+        let mut result: Option<T> = None;
+
+        self.map_node(key, |value| result = value.cloned());
+
+        result
     }
 
     /// Finds the node responsible for the given `key` and passes it to `map`.
@@ -108,7 +155,7 @@ impl<T> HashRing<T> {
             return map(Some(entry.value()));
         }
 
-        let ring = self.ring.read().unwrap();
+        let ring = self.ring.load();
 
         if ring.is_empty() {
             return map(None);
@@ -156,13 +203,9 @@ impl<T> HashRing<T> {
 
     /// Clears all of the nodes and overrides from the hash ring.
     pub fn clear(&self) {
-        let mut ring = self.ring.write().unwrap();
+        let _ring_lock = self.ring_lock.lock().unwrap();
 
-        ring.clear();
-        ring.shrink_to_fit();
-
-        self.overrides.clear();
-        self.overrides.shrink_to_fit();
+        self.ring.store(Arc::new(Vec::new()))
     }
 
     /// Hashes the given key using the selected hasher.
@@ -172,21 +215,10 @@ impl<T> HashRing<T> {
     }
 }
 
-impl<T> HashRing<T>
+impl<T> Default for HashRing<T>
 where
     T: Clone,
 {
-    /// Returns the node responsible for `key`. If there are no nodes in the ring, it will return `None`.
-    pub fn find_node<K: Hash>(&self, key: K) -> Option<T> {
-        let mut result: Option<T> = None;
-
-        self.map_node(key, |value| result = value.cloned());
-
-        result
-    }
-}
-
-impl<T> Default for HashRing<T> {
     fn default() -> Self {
         Self::new()
     }

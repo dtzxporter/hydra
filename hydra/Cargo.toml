@@ -29,6 +29,7 @@ once_cell.workspace = true
 bitflags.workspace = true
 pin-project-lite.workspace = true
 rmp-serde.workspace = true
+arc-swap.workspace = true
 
 hydra-dashmap.workspace = true
 hydra-macros = { workspace = true, optional = true }

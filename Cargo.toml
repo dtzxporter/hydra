@@ -19,6 +19,7 @@ pin-project-lite = "0.2"
 bincode = "2.0.0-rc.3"
 pingora-timeout = "0.2"
 smallvec = "1.13"
+arc-swap = "1.7"
 bytes = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive", "std"] }
 rmp-serde = "1.3"

@@ -6,6 +6,12 @@
 
 ### Fixed
 
+# 0.1.23
+
+### Changed
+- Heavily optimized `HashRing` for fast reads.
+- Added unit tests for `HashRing`.
+
 # 0.1.22
 
 ### Changed
