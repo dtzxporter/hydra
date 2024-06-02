@@ -133,8 +133,8 @@ pub fn node_local_process() -> Option<Pid> {
         .and_then(|process| process.supervisor)
 }
 
-/// Sets the send and receive processes for a given node and flushes any pending messages.
-pub fn node_set_send_recv(node: Node, sender: Pid, receiver: Pid) {
+/// Sets available worker processes for a node, then, drains any pending messages to them.
+pub fn node_register_workers(node: Node, sender: Pid, receiver: Pid) {
     let Some(entry) = NODE_MAP.get(&node) else {
         return;
     };

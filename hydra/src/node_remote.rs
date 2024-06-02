@@ -36,9 +36,9 @@ use crate::node_process_monitor_cleanup;
 use crate::node_process_monitor_destroy;
 use crate::node_process_monitor_down;
 use crate::node_register;
+use crate::node_register_workers;
 use crate::node_remote_supervisor_down;
 use crate::node_send_frame;
-use crate::node_set_send_recv;
 use crate::process_exists_lock;
 use crate::process_exit;
 use crate::process_name_lookup;
@@ -295,12 +295,12 @@ async fn node_remote_supervisor(
 
     if !node_accept(node.clone(), Process::current()) {
         panic!("Not accepting node supervisor!");
-    };
+    }
 
     let sender = Process::spawn_link(node_remote_sender(writer, supervisor.clone()));
     let receiver = Process::spawn_link(node_remote_receiver(reader, supervisor.clone()));
 
-    node_set_send_recv(node, sender, receiver);
+    node_register_workers(node, sender, receiver);
 
     loop {
         let message = Process::receive::<NodeRemoteSupervisorMessage>().await;
