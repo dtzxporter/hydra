@@ -318,6 +318,14 @@ async fn node_remote_supervisor(
 }
 
 pub async fn node_remote_accepter(socket: TcpStream, supervisor: Arc<NodeLocalSupervisor>) {
+    if let Err(error) = socket.set_nodelay(true) {
+        #[cfg(feature = "tracing")]
+        tracing::warn!(error = ?error, "Failed to set TCP_NODELAY on socket");
+
+        #[cfg(not(feature = "tracing"))]
+        let _ = error;
+    }
+
     let framed = Framed::new(socket, Codec::new());
     let (mut writer, mut reader) = framed.split();
 
@@ -382,6 +390,14 @@ pub async fn node_remote_connector(node: Node) {
         .await
         .expect("Timed out while connecting to the node!")
         .expect("Failed to connect to the node!");
+
+    if let Err(error) = socket.set_nodelay(true) {
+        #[cfg(feature = "tracing")]
+        tracing::warn!(error = ?error, "Failed to set TCP_NODELAY on socket");
+
+        #[cfg(not(feature = "tracing"))]
+        let _ = error;
+    }
 
     let framed = Framed::new(socket, Codec::new());
     let (mut writer, mut reader) = framed.split();
