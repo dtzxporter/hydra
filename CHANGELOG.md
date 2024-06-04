@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.24
+
+### Fixed
+- Fixed remote protocol performance on windows platforms.
+
 # 0.1.23
 
 ### Changed
