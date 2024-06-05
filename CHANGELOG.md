@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.25
+
+### Fixed
+- Fixed crash when encoding multiple remote protocol frames at once.
+
 # 0.1.24
 
 ### Fixed
