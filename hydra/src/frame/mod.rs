@@ -137,12 +137,14 @@ impl Encoder<Frame> for Codec {
     type Error = Error;
 
     fn encode(&mut self, item: Frame, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        let marker = dst.len();
+
         dst.put_u32_le(0);
 
         let size = bincode::encode_into_std_write(item, &mut dst.writer(), FRAME_CONFIG)
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
-        dst[0..MARKER_LENGTH].copy_from_slice(&(size as u32).to_le_bytes());
+        dst[marker..marker + MARKER_LENGTH].copy_from_slice(&(size as u32).to_le_bytes());
 
         Ok(())
     }
