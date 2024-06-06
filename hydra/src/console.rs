@@ -24,13 +24,15 @@ pub enum ConsoleServerMessage {
 
 /// Console acts as a relay to `hydra-console`. It collects and sends realtime information about the current hydra instance.
 pub struct ConsoleServer {
-    //
+    /// Used to prevent anyone from just constructing the console server, it's handled by applications.
+    #[allow(unused)]
+    _ignore: bool,
 }
 
 impl ConsoleServer {
     /// Constructs a new instance of [ConsoleServer].
     pub(super) const fn new() -> Self {
-        Self {}
+        Self { _ignore: true }
     }
 
     /// Starts a [ConsoleServer] process linked to the current process.
