@@ -47,6 +47,9 @@ mod system_message;
 mod task;
 mod timeout;
 
+#[cfg(feature = "console")]
+mod console;
+
 pub use application::*;
 pub use application_config::*;
 pub use argument_error::*;
@@ -84,6 +87,9 @@ pub use timeout::*;
 pub use hydra_macros::main;
 #[cfg(feature = "macros")]
 pub use hydra_macros::test;
+
+#[cfg(feature = "console")]
+pub use console::*;
 
 pub(crate) use alias::*;
 pub(crate) use catch_unwind::*;

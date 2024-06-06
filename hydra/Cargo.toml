@@ -13,6 +13,7 @@ description.workspace = true
 default = ["macros", "tracing"]
 tracing = ["dep:tracing", "dep:tracing-subscriber"]
 macros = ["dep:hydra-macros"]
+console = []
 
 [dependencies]
 flume.workspace = true
