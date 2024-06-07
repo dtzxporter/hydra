@@ -102,9 +102,11 @@ impl GenServer for ConsoleServer {
         match message {
             ListNodes(state) => Ok(Some(ListNodesSuccess(Node::list_by_state(state)))),
             ListProcesses => Ok(Some(ListProcessesSuccess(Process::list()))),
-            ProcessesInfo(pids) => Ok(Some(ProcessesInfoSuccess(
-                pids.into_iter().map(Process::info).collect(),
-            ))),
+            ProcessesInfo(pids) => {
+                let process_info = pids.into_iter().map(Process::info).collect();
+
+                Ok(Some(ProcessesInfoSuccess(process_info)))
+            }
             _ => unreachable!(),
         }
     }
