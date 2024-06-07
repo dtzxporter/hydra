@@ -12,6 +12,7 @@ use crate::ArgumentError;
 use crate::ExitReason;
 use crate::Pid;
 use crate::ProcessFlags;
+use crate::ProcessInfo;
 use crate::ProcessItem;
 use crate::ProcessRegistration;
 use crate::ProcessSend;
@@ -268,4 +269,17 @@ pub fn process_destroy_timer(timer: Reference) {
     if let Some((_, (_, handle))) = PROCESS_TIMERS.remove(&timer.id()) {
         handle.abort();
     }
+}
+
+/// Gets process registry info.
+pub fn process_info(pid: Pid) -> Option<ProcessInfo> {
+    let process = PROCESS_REGISTRY.get(&pid.id())?;
+
+    let mut info = ProcessInfo::new();
+
+    info.registered_name.clone_from(&process.name);
+    info.message_queue_len = process.sender.len();
+    info.trap_exit = process.flags.contains(ProcessFlags::TRAP_EXIT);
+
+    Some(info)
 }

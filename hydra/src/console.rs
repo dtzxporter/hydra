@@ -11,6 +11,7 @@ use crate::Node;
 use crate::NodeState;
 use crate::Pid;
 use crate::Process;
+use crate::ProcessInfo;
 
 /// Unique registered name for the console server process.
 const CONSOLE_NAME: &str = "$hydra_console";
@@ -20,6 +21,10 @@ const CONSOLE_NAME: &str = "$hydra_console";
 pub enum ConsoleServerMessage {
     ListNodes(NodeState),
     ListNodesSuccess(Vec<Node>),
+    ListProcesses,
+    ListProcessesSuccess(Vec<Pid>),
+    ProcessesInfo(Vec<Pid>),
+    ProcessesInfoSuccess(Vec<Option<ProcessInfo>>),
 }
 
 /// Console acts as a relay to `hydra-console`. It collects and sends realtime information about the current hydra instance.
@@ -52,6 +57,29 @@ impl ConsoleServer {
             _ => unreachable!(),
         }
     }
+
+    /// Requests the list of running processes.
+    pub async fn list_processes<T: Into<Dest>>(server: T) -> Result<Vec<Pid>, CallError> {
+        use ConsoleServerMessage::*;
+
+        match ConsoleServer::call(server.into(), ListProcesses, None).await? {
+            ListProcessesSuccess(processes) => Ok(processes),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Requests process info for the given processes.
+    pub async fn processes_info<T: Into<Dest>>(
+        server: T,
+        processes: Vec<Pid>,
+    ) -> Result<Vec<Option<ProcessInfo>>, CallError> {
+        use ConsoleServerMessage::*;
+
+        match ConsoleServer::call(server.into(), ProcessesInfo(processes), None).await? {
+            ProcessesInfoSuccess(info) => Ok(info),
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl GenServer for ConsoleServer {
@@ -73,6 +101,10 @@ impl GenServer for ConsoleServer {
 
         match message {
             ListNodes(state) => Ok(Some(ListNodesSuccess(Node::list_by_state(state)))),
+            ListProcesses => Ok(Some(ListProcessesSuccess(Process::list()))),
+            ProcessesInfo(pids) => Ok(Some(ProcessesInfoSuccess(
+                pids.into_iter().map(Process::info).collect(),
+            ))),
             _ => unreachable!(),
         }
     }
