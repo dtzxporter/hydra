@@ -50,6 +50,8 @@ mod timeout;
 
 #[cfg(feature = "console")]
 mod console;
+#[cfg(feature = "console")]
+mod runtime_info;
 
 pub use application::*;
 pub use application_config::*;
@@ -92,6 +94,8 @@ pub use hydra_macros::test;
 
 #[cfg(feature = "console")]
 pub use console::*;
+#[cfg(feature = "console")]
+pub use runtime_info::*;
 
 pub(crate) use alias::*;
 pub(crate) use catch_unwind::*;

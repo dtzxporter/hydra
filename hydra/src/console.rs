@@ -12,6 +12,7 @@ use crate::NodeState;
 use crate::Pid;
 use crate::Process;
 use crate::ProcessInfo;
+use crate::RuntimeInfo;
 
 /// Unique registered name for the console server process.
 const CONSOLE_NAME: &str = "$hydra_console";
@@ -25,6 +26,8 @@ pub enum ConsoleServerMessage {
     ListProcessesSuccess(Vec<Pid>),
     ProcessesInfo(Vec<Pid>),
     ProcessesInfoSuccess(Vec<Option<ProcessInfo>>),
+    ListRuntimeInfo,
+    ListRuntimeInfoSuccess(RuntimeInfo),
 }
 
 /// Console acts as a relay to `hydra-console`. It collects and sends realtime information about the current hydra instance.
@@ -80,6 +83,16 @@ impl ConsoleServer {
             _ => unreachable!(),
         }
     }
+
+    /// Requests runtime info for the hydra instance.
+    pub async fn runtime_info<T: Into<Dest>>(server: T) -> Result<RuntimeInfo, CallError> {
+        use ConsoleServerMessage::*;
+
+        match ConsoleServer::call(server.into(), ListRuntimeInfo, None).await? {
+            ListRuntimeInfoSuccess(info) => Ok(info),
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl GenServer for ConsoleServer {
@@ -107,6 +120,7 @@ impl GenServer for ConsoleServer {
 
                 Ok(Some(ProcessesInfoSuccess(process_info)))
             }
+            ListRuntimeInfo => Ok(Some(ListRuntimeInfoSuccess(RuntimeInfo::load()))),
             _ => unreachable!(),
         }
     }

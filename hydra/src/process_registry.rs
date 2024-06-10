@@ -283,3 +283,9 @@ pub fn process_info(pid: Pid) -> Option<ProcessInfo> {
 
     Some(info)
 }
+
+/// The number of processes currently running.
+#[cfg(feature = "console")]
+pub fn process_len() -> usize {
+    PROCESS_REGISTRY.len()
+}
