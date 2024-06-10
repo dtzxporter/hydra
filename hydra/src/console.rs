@@ -105,6 +105,14 @@ impl GenServer for ConsoleServer {
         Ok(())
     }
 
+    async fn terminate(&mut self, reason: ExitReason) {
+        #[cfg(feature = "tracing")]
+        tracing::info!(console = ?Process::current(), reason = ?reason, "Console server has terminated");
+
+        #[cfg(not(feature = "tracing"))]
+        let _ = reason;
+    }
+
     async fn handle_call(
         &mut self,
         message: Self::Message,
