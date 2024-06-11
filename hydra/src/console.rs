@@ -20,6 +20,8 @@ const CONSOLE_NAME: &str = "$hydra_console";
 /// Message used by the console server.
 #[derive(Serialize, Deserialize)]
 pub enum ConsoleServerMessage {
+    Connect,
+    ConnectSuccess(Pid),
     ListNodes(NodeState),
     ListNodesSuccess(Vec<Node>),
     ListProcesses,
@@ -46,6 +48,16 @@ impl ConsoleServer {
     /// Starts a [ConsoleServer] process linked to the current process.
     pub(super) async fn start_link(self) -> Result<Pid, ExitReason> {
         GenServer::start_link(self, GenServerOptions::new().name(CONSOLE_NAME)).await
+    }
+
+    /// Connects to the [ConsoleServer] on the given node, returning it's [Pid] if successful.
+    pub async fn connect<T: Into<Node>>(node: T) -> Result<Pid, CallError> {
+        use ConsoleServerMessage::*;
+
+        match ConsoleServer::call((CONSOLE_NAME, node), Connect, None).await? {
+            ConnectSuccess(pid) => Ok(pid),
+            _ => unreachable!(),
+        }
     }
 
     /// Requests the connected node list based on the state.
@@ -121,6 +133,7 @@ impl GenServer for ConsoleServer {
         use ConsoleServerMessage::*;
 
         match message {
+            Connect => Ok(Some(ConnectSuccess(Process::current()))),
             ListNodes(state) => Ok(Some(ListNodesSuccess(Node::list_by_state(state)))),
             ListProcesses => Ok(Some(ListProcessesSuccess(Process::list()))),
             ProcessesInfo(pids) => {
