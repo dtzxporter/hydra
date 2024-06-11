@@ -15,11 +15,13 @@ use crate::alias_destroy;
 use crate::alias_destroy_all;
 use crate::link_create;
 use crate::link_destroy;
+use crate::link_fill_info;
 use crate::link_install;
 use crate::link_process_down;
 use crate::monitor_create;
 use crate::monitor_destroy;
 use crate::monitor_destroy_all;
+use crate::monitor_fill_info;
 use crate::monitor_install;
 use crate::monitor_process_down;
 use crate::node_process_send_exit;
@@ -28,6 +30,7 @@ use crate::process_destroy_timer;
 use crate::process_drop;
 use crate::process_exit;
 use crate::process_flags;
+use crate::process_info;
 use crate::process_insert;
 use crate::process_list;
 use crate::process_name_list;
@@ -48,6 +51,7 @@ use crate::ExitReason;
 use crate::Message;
 use crate::Pid;
 use crate::ProcessFlags;
+use crate::ProcessInfo;
 use crate::ProcessItem;
 use crate::ProcessMonitor;
 use crate::ProcessReceiver;
@@ -389,6 +393,24 @@ impl Process {
         } else {
             node_process_send_exit(pid, Self::current(), exit_reason);
         }
+    }
+
+    /// Fetches debug information for a given local process.
+    #[must_use]
+    pub fn info(pid: Pid) -> Option<ProcessInfo> {
+        if pid.is_remote() {
+            panic!("Can't query information on a remote process!");
+        }
+
+        let info = process_info(pid);
+
+        info.map(|mut info| {
+            link_fill_info(pid, &mut info);
+
+            monitor_fill_info(pid, &mut info);
+
+            info
+        })
     }
 }
 

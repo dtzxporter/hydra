@@ -27,6 +27,7 @@ mod node_state;
 mod pid;
 mod process;
 mod process_flags;
+mod process_info;
 mod process_item;
 mod process_kernel;
 mod process_monitor;
@@ -47,6 +48,11 @@ mod system_message;
 mod task;
 mod timeout;
 
+#[cfg(feature = "console")]
+mod console;
+#[cfg(feature = "console")]
+mod runtime_info;
+
 pub use application::*;
 pub use application_config::*;
 pub use argument_error::*;
@@ -66,6 +72,7 @@ pub use node_state::*;
 pub use pid::*;
 pub use process::*;
 pub use process_flags::*;
+pub use process_info::*;
 pub use process_receiver::*;
 pub use receivable::*;
 pub use reference::*;
@@ -84,6 +91,11 @@ pub use timeout::*;
 pub use hydra_macros::main;
 #[cfg(feature = "macros")]
 pub use hydra_macros::test;
+
+#[cfg(feature = "console")]
+pub use console::*;
+#[cfg(feature = "console")]
+pub use runtime_info::*;
 
 pub(crate) use alias::*;
 pub(crate) use catch_unwind::*;

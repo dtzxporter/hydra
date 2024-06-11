@@ -19,6 +19,7 @@ use crate::process_exit_signal_linked;
 use crate::ExitReason;
 use crate::Node;
 use crate::Pid;
+use crate::ProcessInfo;
 
 /// A collection of local processes linked to another process.
 static LINKS: Lazy<DashMap<u64, BTreeSet<Pid>>> = Lazy::new(DashMap::new);
@@ -120,4 +121,13 @@ pub fn link_process_down(from: Pid, exit_reason: ExitReason) {
 
         node_send_frame(link_down.into(), node);
     }
+}
+
+/// Fills in link information for a process.
+pub fn link_fill_info(pid: Pid, info: &mut ProcessInfo) {
+    let Some(links) = LINKS.get(&pid.id()) else {
+        return;
+    };
+
+    info.links = links.value().iter().copied().collect();
 }

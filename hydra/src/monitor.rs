@@ -22,6 +22,7 @@ use crate::Dest;
 use crate::ExitReason;
 use crate::Node;
 use crate::Pid;
+use crate::ProcessInfo;
 use crate::ProcessItem;
 use crate::ProcessMonitor;
 use crate::Reference;
@@ -248,4 +249,13 @@ pub fn monitor_process_down(from: Pid, exit_reason: ExitReason) {
 
         node_send_frame(monitor_down.into(), node);
     }
+}
+
+/// Fills in monitor information for the process.
+pub fn monitor_fill_info(pid: Pid, info: &mut ProcessInfo) {
+    let Some(monitors) = MONITORS.get(&pid.id()) else {
+        return;
+    };
+
+    info.monitored_by = monitors.value().values().map(|entry| entry.0).collect();
 }

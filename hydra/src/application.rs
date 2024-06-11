@@ -15,6 +15,9 @@ use crate::Process;
 use crate::ProcessFlags;
 use crate::SystemMessage;
 
+#[cfg(feature = "console")]
+use crate::ConsoleServer;
+
 /// Messages used internally by [Application].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 enum ApplicationMessage {
@@ -73,6 +76,12 @@ pub trait Application: Sized + Send + 'static {
             Process::spawn(async move {
                 Process::set_flags(ProcessFlags::TRAP_EXIT);
 
+                #[cfg(feature="console")]
+                let mut cpid = ConsoleServer::new()
+                                        .start_link()
+                                        .await
+                                        .expect("Failed to start console server!");
+
                 match self.start().await {
                     Ok(pid) => {
                         #[cfg(feature = "tracing")]
@@ -110,6 +119,14 @@ pub trait Application: Sized + Send + 'static {
 
                                         Process::exit(pid, ExitReason::from("shutdown"));
                                         Process::send_after(Process::current(), ShutdownTimeout, config.graceful_shutdown_timeout);
+                                    }
+
+                                    #[cfg(feature = "console")]
+                                    if cpid == epid && ereason != "shutdown" {
+                                        cpid = ConsoleServer::new()
+                                                        .start_link()
+                                                        .await
+                                                        .expect("Failed to restart console server!");
                                     }
                                 }
                                 _ => continue,

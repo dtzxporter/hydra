@@ -1,5 +1,8 @@
+use serde::Deserialize;
+use serde::Serialize;
+
 /// The different states a node can be in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum NodeState {
     /// This node is the local node.
     Current,
