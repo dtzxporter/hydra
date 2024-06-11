@@ -1,12 +1,16 @@
 # Unreleased
 
 ### Added
-- Process::info to get debug information on a specific local process.
-- ConsoleServer, enabled using the `console` feature which enables a remote debug api for gathering debug information in realtime.
 
 ### Changed
 
 ### Fixed
+
+# 0.1.26
+
+### Added
+- Process::info to get debug information on a specific local process.
+- ConsoleServer, enabled using the `console` feature which enables a remote debug api for gathering debug information in realtime.
 
 # 0.1.25
 
