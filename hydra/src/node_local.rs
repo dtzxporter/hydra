@@ -25,6 +25,7 @@ pub enum NodeLocalSupervisorMessage {
 pub struct NodeLocalSupervisor {
     pub name: String,
     pub options: NodeOptions,
+    #[allow(dead_code)]
     pub process: Pid,
 }
 
