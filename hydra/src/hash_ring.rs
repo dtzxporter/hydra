@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use arc_swap::ArcSwap;
 
-use hydra_dashmap::DashMap;
+use dashmap::DashMap;
 
 /// Internal key, node pair.
 #[derive(Clone)]

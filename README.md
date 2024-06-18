@@ -161,7 +161,7 @@ There is a message passing benchmark in the examples you can run using `cargo ru
 
 - **Intel 14700k**: 26257627 msg/s
 - **Intel 7700k**: 7332666 msg/s
-- **Apple M1 Max**: 5053229 msg/s
+- **Apple M1 Max**: 5743765 msg/s
 
 ## License
 This project is licensed under the [MIT license](https://github.com/dtzxporter/hydra/blob/main/LICENSE)

@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.27
+
+### Changed
+- Updated to latest release of `dashmap`, removed forked `hydra-dashmap`, better performance and official release.
+
 # 0.1.26
 
 ### Added

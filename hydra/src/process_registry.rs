@@ -1,8 +1,8 @@
 use std::time::Duration;
 use std::time::Instant;
 
-use hydra_dashmap::mapref::entry::Entry;
-use hydra_dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
+use dashmap::DashMap;
 
 use once_cell::sync::Lazy;
 

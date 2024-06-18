@@ -1,6 +1,6 @@
 [package]
 name = "hydra"
-version = "0.1.26"
+version = "0.1.27"
 edition = "2021"
 readme.workspace = true
 license.workspace = true
@@ -31,8 +31,8 @@ bitflags.workspace = true
 pin-project-lite.workspace = true
 rmp-serde.workspace = true
 arc-swap.workspace = true
+dashmap.workspace = true
 
-hydra-dashmap.workspace = true
 hydra-macros = { workspace = true, optional = true }
 
 tracing = { workspace = true, optional = true }
