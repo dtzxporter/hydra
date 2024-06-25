@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.28
+
+### Changed
+- Updated to the latest release of `dashmap` that fixes a deadlock.
+
 # 0.1.27
 
 ### Changed
