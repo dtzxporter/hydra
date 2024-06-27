@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.29
+
+### Added
+- Added memory statistics to the console api.
+
 # 0.1.28
 
 ### Changed

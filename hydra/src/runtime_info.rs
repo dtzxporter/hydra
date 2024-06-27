@@ -16,12 +16,28 @@ pub struct RuntimeInfo {
     pub worker_threads: usize,
     /// The number of processes currently running.
     pub processes: usize,
+    /// The "physical" memory used by this process, in bytes.
+    /// This corresponds to the following
+    /// metric on each platform:
+    /// - **Linux, Android, MacOS, iOS**: Resident Set Size.
+    /// - **Windows**: Working Set.
+    pub physical_memory: usize,
+    /// The "virtual" memory used by this process, in bytes.
+    /// This corresponds to the following
+    /// metric on each platform:
+    /// - **Linux, Android, MacOS, iOS**: Virtual Size.
+    /// - **Windows**: Pagefile Usage.
+    pub virtual_memory: usize,
 }
 
 impl RuntimeInfo {
     /// Constructs and loads [RuntimeInfo] data, must be called from within the runtime.
     pub(super) fn load() -> Self {
         let runtime = Handle::current();
+
+        let (physical_memory, virtual_memory) = memory_stats::memory_stats()
+            .map(|stats| (stats.physical_mem, stats.virtual_mem))
+            .unwrap_or_default();
 
         Self {
             system_version: String::from(env!("CARGO_PKG_VERSION")),
@@ -30,6 +46,8 @@ impl RuntimeInfo {
                 .unwrap_or_default(),
             worker_threads: runtime.metrics().num_workers(),
             processes: process_len(),
+            physical_memory,
+            virtual_memory,
         }
     }
 }
