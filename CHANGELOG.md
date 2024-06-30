@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.30
+
+### Fixed
+- Use named field for remote protocol to fix serialize issue.
+
 # 0.1.29
 
 ### Added

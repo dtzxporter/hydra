@@ -5,7 +5,7 @@ use serde::Serialize;
 
 /// Serializes a value.
 pub fn serialize_value<T: Serialize>(value: &T) -> Vec<u8> {
-    rmp_serde::to_vec(value).unwrap()
+    rmp_serde::to_vec_named(value).unwrap()
 }
 
 /// Deserializes a value.
