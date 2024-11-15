@@ -222,7 +222,7 @@ async fn signal_handler() {
 
 /// Handles forwarding panic messages through tracing when enabled.
 #[cfg(feature = "tracing")]
-fn panic_hook(panic_info: &std::panic::PanicInfo) {
+fn panic_hook(panic_info: &std::panic::PanicHookInfo) {
     use std::backtrace::Backtrace;
     use std::backtrace::BacktraceStatus;
 
