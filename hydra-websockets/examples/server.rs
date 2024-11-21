@@ -21,6 +21,7 @@ impl WebsocketHandler for MyWebsocketHandler {
     type Message = ();
 
     fn accept(
+        _address: SocketAddr,
         _request: &WebsocketRequest,
         response: WebsocketResponse,
     ) -> Result<(WebsocketResponse, Self), ExitReason> {

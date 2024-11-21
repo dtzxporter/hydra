@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::net::SocketAddr;
 
 use futures_util::stream;
 use futures_util::SinkExt;
@@ -34,6 +35,7 @@ where
     ///
     /// You can extract information from the request and put it in your handler state.
     fn accept(
+        address: SocketAddr,
         request: &WebsocketRequest,
         response: WebsocketResponse,
     ) -> Result<(WebsocketResponse, Self), ExitReason>;

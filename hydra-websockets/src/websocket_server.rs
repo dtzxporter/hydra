@@ -99,7 +99,7 @@ where
     let mut handler: Option<T> = None;
 
     let callback = |request: &WebsocketRequest, response: WebsocketResponse| match T::accept(
-        request, response,
+        address, request, response,
     ) {
         Ok((response, rhandler)) => {
             handler = Some(rhandler);

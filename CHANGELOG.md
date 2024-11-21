@@ -6,6 +6,16 @@
 
 ### Fixed
 
+# 0.1.32
+
+### Changed
+- **BREAKING**: Changed the signature of `WebsocketHandler::accept()` to also pass the connecting socket address down.
+
+# 0.1.31
+
+### Changed
+- Updated dependencies.
+
 # 0.1.30
 
 ### Fixed
