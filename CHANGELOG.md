@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.33
+
+### Added
+- Added `WebsocketServer::child_spec()` to make it easier to supervise the server.
+
 # 0.1.32
 
 ### Changed

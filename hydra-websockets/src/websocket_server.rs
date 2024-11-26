@@ -18,8 +18,10 @@ use tungstenite::protocol::WebSocketConfig;
 #[cfg(feature = "native-tls")]
 use tokio_native_tls::TlsAcceptor;
 
+use hydra::ChildSpec;
 use hydra::ExitReason;
 use hydra::GenServer;
+use hydra::GenServerOptions;
 use hydra::Pid;
 use hydra::Process;
 use hydra::ProcessFlags;
@@ -49,6 +51,24 @@ where
             server: None,
             _handler: PhantomData,
         }
+    }
+}
+
+impl<T> WebsocketServer<T>
+where
+    T: WebsocketHandler + Send + Sync + 'static,
+{
+    pub fn child_spec(self) -> ChildSpec {
+        ChildSpec::new("WebsocketServer").start(move || {
+            WebsocketServer::start_link(
+                WebsocketServer {
+                    config: self.config.clone(),
+                    server: None,
+                    _handler: PhantomData::<T>,
+                },
+                GenServerOptions::new(),
+            )
+        })
     }
 }
 

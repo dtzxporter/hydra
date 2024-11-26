@@ -1,6 +1,6 @@
 [package]
 name = "hydra"
-version = "0.1.32"
+version = "0.1.33"
 edition = "2021"
 readme.workspace = true
 license.workspace = true
