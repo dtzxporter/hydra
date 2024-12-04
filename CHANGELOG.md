@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.34
+
+### Changed
+- Registry `stop_process`/`start_process` now has a fast path to check if a local registry has/doesn't have the process.
+
 # 0.1.33
 
 ### Added

@@ -197,7 +197,16 @@ impl Registry {
     ) -> Result<Pid, RegistryError> {
         use RegistryMessage::*;
 
-        match Registry::call(registry, Start(key.into()), None).await? {
+        let registry = registry.into();
+        let key = key.into();
+
+        if let Dest::Named(registry, Node::Local) = &registry {
+            if let Some(pid) = lookup_process(registry, &key) {
+                return Err(RegistryError::AlreadyStarted(pid));
+            }
+        }
+
+        match Registry::call(registry, Start(key), None).await? {
             StartSuccess(pid) => Ok(pid),
             StartError(error) => Err(error),
             _ => unreachable!(),
@@ -215,7 +224,16 @@ impl Registry {
     ) -> Result<(), RegistryError> {
         use RegistryMessage::*;
 
-        match Registry::call(registry, Stop(key.into()), None).await? {
+        let registry = registry.into();
+        let key = key.into();
+
+        if let Dest::Named(registry, Node::Local) = &registry {
+            if lookup_process(registry, &key).is_none() {
+                return Err(RegistryError::NotFound);
+            }
+        }
+
+        match Registry::call(registry, Stop(key), None).await? {
             StopSuccess => Ok(()),
             StopError(error) => Err(error),
             _ => unreachable!(),
