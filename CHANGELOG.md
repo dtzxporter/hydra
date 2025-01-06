@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.36
+
+### Changed
+- Removed unnecessary `Send` bound on `GenServer::stop<T>`.
+
 # 0.1.35
 
 ### Changed

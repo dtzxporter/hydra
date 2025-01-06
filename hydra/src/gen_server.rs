@@ -142,7 +142,7 @@ pub trait GenServer: Sized + Send + 'static {
     /// exits with a reason other than the given `reason`.
     ///
     /// The default timeout is infinity.
-    fn stop<T: Into<Dest> + Send>(
+    fn stop<T: Into<Dest>>(
         server: T,
         reason: ExitReason,
         timeout: Option<Duration>,
