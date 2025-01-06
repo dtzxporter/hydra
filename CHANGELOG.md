@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.35
+
+### Changed
+- Registry methods now have an argument to specify `timeout` for calls.
+
 # 0.1.34
 
 ### Changed

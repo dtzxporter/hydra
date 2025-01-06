@@ -20,27 +20,27 @@ use hydra::Supervisor;
 use hydra::SupervisorOptions;
 
 async fn test_registry() {
-    Registry::start_process("space-registry", "my awesome space id")
+    Registry::start_process("space-registry", "my awesome space id", None)
         .await
         .expect("Failed to start process");
 
-    Registry::start_process("space-registry", "my lame space id")
+    Registry::start_process("space-registry", "my lame space id", None)
         .await
         .expect("Failed to start process");
 
-    let pid = Registry::lookup("space-registry", "my awesome space id")
+    let pid = Registry::lookup("space-registry", "my awesome space id", None)
         .await
         .expect("Failed to lookup process");
 
     tracing::info!("Looked up space process: {:?}", pid);
 
-    let count = Registry::count("space-registry")
+    let count = Registry::count("space-registry", None)
         .await
         .expect("Failed to count processes");
 
     tracing::info!("Count of registered processes: {:?}", count);
 
-    let list = Registry::list("space-registry")
+    let list = Registry::list("space-registry", None)
         .await
         .expect("Failed to list processes");
 

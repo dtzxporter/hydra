@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use dashmap::DashMap;
 
@@ -147,6 +148,7 @@ impl Registry {
     pub async fn lookup<T: Into<Dest>, N: Into<RegistryKey>>(
         registry: T,
         key: N,
+        timeout: Option<Duration>,
     ) -> Result<Option<Pid>, RegistryError> {
         use RegistryMessage::*;
 
@@ -157,7 +159,7 @@ impl Registry {
             return Ok(lookup_process(registry, &key));
         }
 
-        match Registry::call(registry, Lookup(key), None).await? {
+        match Registry::call(registry, Lookup(key), timeout).await? {
             LookupSuccess(pid) => Ok(pid),
             _ => unreachable!(),
         }
@@ -169,6 +171,7 @@ impl Registry {
     pub async fn lookup_or_start<T: Into<Dest>, N: Into<RegistryKey>>(
         registry: T,
         key: N,
+        timeout: Option<Duration>,
     ) -> Result<Pid, RegistryError> {
         use RegistryMessage::*;
 
@@ -181,7 +184,7 @@ impl Registry {
             }
         }
 
-        match Registry::call(registry, LookupOrStart(key), None).await? {
+        match Registry::call(registry, LookupOrStart(key), timeout).await? {
             LookupOrStartSuccess(pid) => Ok(pid),
             LookupOrStartError(error) => Err(error),
             _ => unreachable!(),
@@ -194,6 +197,7 @@ impl Registry {
     pub async fn start_process<T: Into<Dest>, N: Into<RegistryKey>>(
         registry: T,
         key: N,
+        timeout: Option<Duration>,
     ) -> Result<Pid, RegistryError> {
         use RegistryMessage::*;
 
@@ -206,7 +210,7 @@ impl Registry {
             }
         }
 
-        match Registry::call(registry, Start(key), None).await? {
+        match Registry::call(registry, Start(key), timeout).await? {
             StartSuccess(pid) => Ok(pid),
             StartError(error) => Err(error),
             _ => unreachable!(),
@@ -221,6 +225,7 @@ impl Registry {
     pub async fn stop_process<T: Into<Dest>, N: Into<RegistryKey>>(
         registry: T,
         key: N,
+        timeout: Option<Duration>,
     ) -> Result<(), RegistryError> {
         use RegistryMessage::*;
 
@@ -233,7 +238,7 @@ impl Registry {
             }
         }
 
-        match Registry::call(registry, Stop(key), None).await? {
+        match Registry::call(registry, Stop(key), timeout).await? {
             StopSuccess => Ok(()),
             StopError(error) => Err(error),
             _ => unreachable!(),
@@ -241,7 +246,10 @@ impl Registry {
     }
 
     /// Returns the number of registered processes for the given `registry`.
-    pub async fn count<T: Into<Dest>>(registry: T) -> Result<usize, RegistryError> {
+    pub async fn count<T: Into<Dest>>(
+        registry: T,
+        timeout: Option<Duration>,
+    ) -> Result<usize, RegistryError> {
         use RegistryMessage::*;
 
         let registry = registry.into();
@@ -250,7 +258,7 @@ impl Registry {
             return Ok(count_processes(registry));
         }
 
-        match Registry::call(registry, Count, None).await? {
+        match Registry::call(registry, Count, timeout).await? {
             CountSuccess(count) => Ok(count),
             _ => unreachable!(),
         }
@@ -261,6 +269,7 @@ impl Registry {
     /// There is no ordering guarantee.
     pub async fn list<T: Into<Dest>>(
         registry: T,
+        timeout: Option<Duration>,
     ) -> Result<Vec<(RegistryKey, Pid)>, RegistryError> {
         use RegistryMessage::*;
 
@@ -270,7 +279,7 @@ impl Registry {
             return Ok(list_processes(registry));
         }
 
-        match Registry::call(registry, List, None).await? {
+        match Registry::call(registry, List, timeout).await? {
             ListSuccess(list) => Ok(list),
             _ => unreachable!(),
         }
@@ -282,6 +291,7 @@ impl Registry {
     pub async fn remove<T: Into<Dest>, N: Into<RegistryKey>>(
         registry: T,
         key: N,
+        timeout: Option<Duration>,
     ) -> Result<Option<Pid>, RegistryError> {
         use RegistryMessage::*;
 
@@ -298,7 +308,7 @@ impl Registry {
             return Ok(Some(process));
         }
 
-        match Registry::call(registry, Remove(key), None).await? {
+        match Registry::call(registry, Remove(key), timeout).await? {
             RemoveSuccess(pid) => Ok(pid),
             _ => unreachable!(),
         }
