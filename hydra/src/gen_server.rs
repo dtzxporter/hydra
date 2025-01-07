@@ -386,14 +386,14 @@ async fn start_gen_server<T: GenServer>(
                 tx.send(Ok(())).expect("Failed to notify parent process!");
             }
             Ok(Err(reason)) => {
-                tx.send(Err(reason))
+                tx.send(Err(reason.clone()))
                     .expect("Failed to notify parent process!");
-                return;
+                return Process::exit(Process::current(), reason);
             }
             Err(_) => {
                 tx.send(Err(ExitReason::from("timeout")))
                     .expect("Failed to notify parent process!");
-                return;
+                return Process::exit(Process::current(), ExitReason::from("timeout"));
             }
         }
 

@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.37
+
+### Fixed
+- Properly propagate exit reason returned from `GenServer::init`.
+
 # 0.1.36
 
 ### Changed
