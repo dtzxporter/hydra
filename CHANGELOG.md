@@ -6,6 +6,11 @@
 
 ### Fixed
 
+# 0.1.38
+
+### Fixed
+- Return if process exited from `GenServer::init`.
+
 # 0.1.37
 
 ### Fixed

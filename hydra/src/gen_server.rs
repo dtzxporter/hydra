@@ -130,7 +130,6 @@ pub trait GenServer: Sized + Send + 'static {
     /// Starts a [GenServer] process linked to the current process.
     fn start_link(
         self,
-
         options: GenServerOptions,
     ) -> impl Future<Output = Result<Pid, ExitReason>> + Send {
         async { start_gen_server(self, options, true).await }
@@ -460,6 +459,6 @@ async fn start_gen_server<T: GenServer>(
     };
 
     rx.await
+        .map_err(|_| ExitReason::from("unknown"))?
         .map(|_| pid)
-        .map_err(|_| ExitReason::from("unknown"))
 }
