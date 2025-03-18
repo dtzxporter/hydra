@@ -35,10 +35,10 @@ impl WebsocketHandler for MyWebsocketHandler {
     ) -> Result<Option<WebsocketCommands>, ExitReason> {
         match message {
             WebsocketMessage::Text(text) => {
-                tracing::info!(handler = ?Process::current(), message = ?text, "Got message");
+                tracing::info!(handler = ?Process::current(), message = ?text.as_str(), "Got message");
 
                 // Echo the command back to the client.
-                Ok(Some(WebsocketCommands::with_send(text)))
+                Ok(Some(WebsocketCommands::with_send(text.as_str())))
             }
             _ => {
                 // Hydra websockets automatically responds to ping requests.

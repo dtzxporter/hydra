@@ -6,6 +6,12 @@
 
 ### Fixed
 
+# 0.1.39
+
+### Changed
+- Updated dependencies.
+- `WebsocketMessage` was updated to match `tungstenite`'s message type (Breaking).
+
 # 0.1.38
 
 ### Fixed

@@ -128,11 +128,9 @@ where
         Err(reason) => Err(ErrorResponse::new(Some(format!("{:?}", reason)))),
     };
 
-    let ws_config = WebSocketConfig {
-        max_message_size: config.max_message_size,
-        max_frame_size: config.max_frame_size,
-        ..Default::default()
-    };
+    let ws_config = WebSocketConfig::default()
+        .max_message_size(config.max_message_size)
+        .max_frame_size(config.max_frame_size);
 
     let accept = match config.handshake_timeout {
         Some(timeout) => {
