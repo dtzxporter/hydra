@@ -6,6 +6,12 @@
 
 ### Fixed
 
+# 0.1.40
+
+### Changed
+- Updated dependencies.
+- Updated rust edition to `2024`.
+
 # 0.1.39
 
 ### Changed
