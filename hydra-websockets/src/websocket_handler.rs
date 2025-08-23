@@ -227,7 +227,7 @@ fn error_to_reason(error: &Error) -> ExitReason {
         Error::AlreadyClosed | Error::ConnectionClosed => ExitReason::from("connection_closed"),
         Error::Io(_) => ExitReason::from("io_error"),
         Error::Tls(_) => ExitReason::from("tls_error"),
-        Error::Utf8 => ExitReason::from("utf8_error"),
+        Error::Utf8(_) => ExitReason::from("utf8_error"),
         Error::AttackAttempt => ExitReason::from("attack_attempt"),
         _ => ExitReason::from("unknown"),
     }
