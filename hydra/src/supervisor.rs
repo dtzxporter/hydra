@@ -6,9 +6,6 @@ use std::time::Instant;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::shutdown_brutal_kill;
-use crate::shutdown_infinity;
-use crate::shutdown_timeout;
 use crate::AutoShutdown;
 use crate::CallError;
 use crate::ChildSpec;
@@ -26,6 +23,9 @@ use crate::Restart;
 use crate::Shutdown;
 use crate::SupervisorOptions;
 use crate::SystemMessage;
+use crate::shutdown_brutal_kill;
+use crate::shutdown_infinity;
+use crate::shutdown_timeout;
 
 /// A supervision child.
 #[derive(Clone)]

@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use crate::deserialize_value;
 use crate::Message;
+use crate::PROCESS;
 use crate::ProcessItem;
 use crate::ProcessMonitor;
 use crate::Receivable;
 use crate::SystemMessage;
-use crate::PROCESS;
+use crate::deserialize_value;
 
 /// Used to receive messages from processes.
 pub struct ProcessReceiver<T: Receivable> {

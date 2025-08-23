@@ -1,7 +1,7 @@
 use std::io;
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 /// Serializes a value.
 pub fn serialize_value<T: Serialize>(value: &T) -> Vec<u8> {

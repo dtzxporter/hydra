@@ -5,12 +5,12 @@ use std::num::NonZeroU64;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::INVALID_NODE_ID;
+use crate::LOCAL_NODE_ID;
+use crate::Node;
 use crate::node_lookup_local;
 use crate::node_lookup_remote;
 use crate::node_register;
-use crate::Node;
-use crate::INVALID_NODE_ID;
-use crate::LOCAL_NODE_ID;
 
 /// The representation of a [Pid] serialized for the wire.
 #[derive(Serialize, Deserialize)]

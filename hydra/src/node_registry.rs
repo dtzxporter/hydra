@@ -1,24 +1,17 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
 
-use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 
 use once_cell::sync::Lazy;
 
 use crate::frame::Frame;
 
-use crate::alias_destroy;
-use crate::link_destroy;
-use crate::monitor_destroy;
-use crate::node_local_supervisor;
-use crate::node_remote_connector;
-use crate::process_exit_signal_linked;
-use crate::process_sender;
 use crate::Dest;
 use crate::ExitReason;
 use crate::Local;
@@ -31,6 +24,13 @@ use crate::Pid;
 use crate::Process;
 use crate::ProcessItem;
 use crate::Reference;
+use crate::alias_destroy;
+use crate::link_destroy;
+use crate::monitor_destroy;
+use crate::node_local_supervisor;
+use crate::node_remote_connector;
+use crate::process_exit_signal_linked;
+use crate::process_sender;
 
 /// Represents the node id always used for the local node.
 pub const LOCAL_NODE_ID: u64 = 0;
@@ -109,10 +109,10 @@ pub fn node_local_stop() {
 
     NODE_MAP.clear();
 
-    if let Some(entry) = NODE_REGISTRATIONS.get(&LOCAL_NODE_ID) {
-        if let Some(supervisor) = entry.supervisor {
-            Process::exit(supervisor, ExitReason::Kill);
-        }
+    if let Some(entry) = NODE_REGISTRATIONS.get(&LOCAL_NODE_ID)
+        && let Some(supervisor) = entry.supervisor
+    {
+        Process::exit(supervisor, ExitReason::Kill);
     }
 
     NODE_REGISTRATIONS.clear();
@@ -206,12 +206,11 @@ pub fn node_accept(node: Node, supervisor: Pid) -> bool {
             let mut accepted = false;
 
             NODE_REGISTRATIONS.alter(entry.get(), |_, mut value| {
-                if matches!(value.state, NodeState::Pending) {
-                    if let Some(current_supervisor) = value.supervisor.take() {
-                        if supervisor != current_supervisor {
-                            Process::exit(current_supervisor, ExitReason::Kill);
-                        }
-                    }
+                if matches!(value.state, NodeState::Pending)
+                    && let Some(current_supervisor) = value.supervisor.take()
+                    && supervisor != current_supervisor
+                {
+                    Process::exit(current_supervisor, ExitReason::Kill);
                 }
 
                 if value.supervisor.is_none() {

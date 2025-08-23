@@ -11,8 +11,6 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::shutdown_infinity;
-use crate::shutdown_timeout;
 use crate::CallError;
 use crate::ChildSpec;
 use crate::ChildType;
@@ -29,6 +27,8 @@ use crate::Reference;
 use crate::RegistryOptions;
 use crate::Shutdown;
 use crate::SystemMessage;
+use crate::shutdown_infinity;
+use crate::shutdown_timeout;
 
 /// A local collection of active process registries.
 static REGISTRY: Lazy<DashMap<String, DashMap<RegistryKey, Pid>>> = Lazy::new(DashMap::new);
@@ -178,10 +178,10 @@ impl Registry {
         let registry = registry.into();
         let key = key.into();
 
-        if let Dest::Named(registry, Node::Local) = &registry {
-            if let Some(result) = lookup_process(registry, &key) {
-                return Ok(result);
-            }
+        if let Dest::Named(registry, Node::Local) = &registry
+            && let Some(result) = lookup_process(registry, &key)
+        {
+            return Ok(result);
         }
 
         match Registry::call(registry, LookupOrStart(key), timeout).await? {
@@ -204,10 +204,10 @@ impl Registry {
         let registry = registry.into();
         let key = key.into();
 
-        if let Dest::Named(registry, Node::Local) = &registry {
-            if let Some(pid) = lookup_process(registry, &key) {
-                return Err(RegistryError::AlreadyStarted(pid));
-            }
+        if let Dest::Named(registry, Node::Local) = &registry
+            && let Some(pid) = lookup_process(registry, &key)
+        {
+            return Err(RegistryError::AlreadyStarted(pid));
         }
 
         match Registry::call(registry, Start(key), timeout).await? {
@@ -232,10 +232,10 @@ impl Registry {
         let registry = registry.into();
         let key = key.into();
 
-        if let Dest::Named(registry, Node::Local) = &registry {
-            if lookup_process(registry, &key).is_none() {
-                return Err(RegistryError::NotFound);
-            }
+        if let Dest::Named(registry, Node::Local) = &registry
+            && lookup_process(registry, &key).is_none()
+        {
+            return Err(RegistryError::NotFound);
         }
 
         match Registry::call(registry, Stop(key), timeout).await? {

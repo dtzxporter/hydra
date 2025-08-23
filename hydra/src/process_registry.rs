@@ -1,8 +1,8 @@
 use std::time::Duration;
 use std::time::Instant;
 
-use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 
 use once_cell::sync::Lazy;
 

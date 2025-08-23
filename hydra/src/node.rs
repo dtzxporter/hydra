@@ -4,6 +4,13 @@ use std::net::SocketAddr;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::NodeOptions;
+use crate::NodeState;
+use crate::PROCESS;
+use crate::Pid;
+use crate::Process;
+use crate::ProcessMonitor;
+use crate::Reference;
 use crate::node_alive;
 use crate::node_disconnect;
 use crate::node_forget;
@@ -16,13 +23,6 @@ use crate::node_monitor_create;
 use crate::node_monitor_destroy;
 use crate::node_register;
 use crate::node_set_cookie;
-use crate::NodeOptions;
-use crate::NodeState;
-use crate::Pid;
-use crate::Process;
-use crate::ProcessMonitor;
-use crate::Reference;
-use crate::PROCESS;
 
 /// Represents a [Node] serialized for the wire.
 #[derive(Serialize, Deserialize)]

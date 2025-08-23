@@ -7,11 +7,11 @@ use tokio::net::TcpStream;
 
 use tokio_util::codec::Framed;
 
+use futures_util::SinkExt;
+use futures_util::StreamExt;
 use futures_util::stream;
 use futures_util::stream::SplitSink;
 use futures_util::stream::SplitStream;
-use futures_util::SinkExt;
-use futures_util::StreamExt;
 
 use crate::frame::Codec;
 use crate::frame::Frame;
@@ -22,6 +22,16 @@ use crate::frame::MonitorUpdate;
 use crate::frame::Ping;
 use crate::frame::Pong;
 
+use crate::ExitReason;
+use crate::Local;
+use crate::Message;
+use crate::Node;
+use crate::NodeLocalSupervisor;
+use crate::NodeLocalSupervisorMessage;
+use crate::Pid;
+use crate::Process;
+use crate::ProcessItem;
+use crate::Reference;
 use crate::link_create;
 use crate::link_destroy;
 use crate::monitor_create;
@@ -43,16 +53,6 @@ use crate::process_exists_lock;
 use crate::process_exit;
 use crate::process_name_lookup;
 use crate::process_sender;
-use crate::ExitReason;
-use crate::Local;
-use crate::Message;
-use crate::Node;
-use crate::NodeLocalSupervisor;
-use crate::NodeLocalSupervisorMessage;
-use crate::Pid;
-use crate::Process;
-use crate::ProcessItem;
-use crate::Reference;
 
 type Reader = SplitStream<Framed<TcpStream, Codec>>;
 type Writer = SplitSink<Framed<TcpStream, Codec>, Frame>;

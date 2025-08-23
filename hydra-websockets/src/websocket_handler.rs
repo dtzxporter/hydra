@@ -1,16 +1,16 @@
 use std::future::Future;
 use std::net::SocketAddr;
 
-use futures_util::stream;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
+use futures_util::stream;
 
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 
-use tokio_tungstenite::tungstenite::protocol::CloseFrame;
-use tokio_tungstenite::tungstenite::Error;
 use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::Error;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
 use hydra::ExitReason;
 use hydra::Message;

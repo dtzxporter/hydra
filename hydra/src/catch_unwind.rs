@@ -1,7 +1,7 @@
 use std::future::Future;
-use std::panic::catch_unwind;
 use std::panic::AssertUnwindSafe;
 use std::panic::UnwindSafe;
+use std::panic::catch_unwind;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;

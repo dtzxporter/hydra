@@ -48,7 +48,7 @@ impl Semaphore {
 
     /// Acquires one permit asynchronously waiting for one to become available.
     #[must_use]
-    pub async fn acquire(&self) -> SemaphorePermit {
+    pub async fn acquire(&self) -> SemaphorePermit<'_> {
         let permit = self.inner.acquire().await.unwrap();
 
         SemaphorePermit { _permit: permit }
@@ -56,14 +56,14 @@ impl Semaphore {
 
     /// Acquires many permits asynchronously waiting for them to become available.
     #[must_use]
-    pub async fn acquire_many(&self, count: u32) -> SemaphorePermit {
+    pub async fn acquire_many(&self, count: u32) -> SemaphorePermit<'_> {
         let permit = self.inner.acquire_many(count).await.unwrap();
 
         SemaphorePermit { _permit: permit }
     }
 
     /// Attempts to acquire a permit, returning an error if there are none available.
-    pub fn try_acquire(&self) -> Result<SemaphorePermit, NoPermits> {
+    pub fn try_acquire(&self) -> Result<SemaphorePermit<'_>, NoPermits> {
         let permit = self.inner.try_acquire().map_err(|_| NoPermits)?;
 
         Ok(SemaphorePermit { _permit: permit })
@@ -97,7 +97,7 @@ impl OwnedSemaphore {
 
     /// Acquires one permit asynchronously waiting for one to become available.
     #[must_use]
-    pub async fn acquire(&self) -> SemaphorePermit {
+    pub async fn acquire(&self) -> SemaphorePermit<'_> {
         let permit = self.inner.acquire().await.unwrap();
 
         SemaphorePermit { _permit: permit }
@@ -113,7 +113,7 @@ impl OwnedSemaphore {
 
     /// Acquires many permits asynchronously waiting for them to become available.
     #[must_use]
-    pub async fn acquire_many(&self, count: u32) -> SemaphorePermit {
+    pub async fn acquire_many(&self, count: u32) -> SemaphorePermit<'_> {
         let permit = self.inner.acquire_many(count).await.unwrap();
 
         SemaphorePermit { _permit: permit }
@@ -128,7 +128,7 @@ impl OwnedSemaphore {
     }
 
     /// Attempts to acquire a permit, returning an error if there are none available.
-    pub fn try_acquire(&self) -> Result<SemaphorePermit, NoPermits> {
+    pub fn try_acquire(&self) -> Result<SemaphorePermit<'_>, NoPermits> {
         let permit = self.inner.try_acquire().map_err(|_| NoPermits)?;
 
         Ok(SemaphorePermit { _permit: permit })

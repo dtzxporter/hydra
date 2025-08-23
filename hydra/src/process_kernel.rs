@@ -4,6 +4,11 @@ use crate::frame::Frame;
 use crate::frame::Send;
 use crate::frame::SendTarget;
 
+use crate::Dest;
+use crate::Dests;
+use crate::Message;
+use crate::ProcessItem;
+use crate::Receivable;
 use crate::alias_retrieve;
 use crate::node_process_send_with_alias;
 use crate::node_process_send_with_name;
@@ -13,11 +18,6 @@ use crate::node_send_frame;
 use crate::process_name_lookup;
 use crate::process_sender;
 use crate::serialize_value;
-use crate::Dest;
-use crate::Dests;
-use crate::Message;
-use crate::ProcessItem;
-use crate::Receivable;
 
 /// Sends a message to one or more destinations.
 pub fn process_send<M: Receivable>(dests: Dests, message: M) {

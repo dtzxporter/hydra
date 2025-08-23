@@ -8,6 +8,10 @@ use once_cell::sync::Lazy;
 use crate::frame::Link;
 use crate::frame::LinkDown;
 
+use crate::ExitReason;
+use crate::Node;
+use crate::Pid;
+use crate::ProcessInfo;
 use crate::node_lookup_remote;
 use crate::node_process_link_create;
 use crate::node_process_link_destroy;
@@ -16,10 +20,6 @@ use crate::node_register;
 use crate::node_send_frame;
 use crate::process_exists_lock;
 use crate::process_exit_signal_linked;
-use crate::ExitReason;
-use crate::Node;
-use crate::Pid;
-use crate::ProcessInfo;
 
 /// A collection of local processes linked to another process.
 static LINKS: Lazy<DashMap<u64, BTreeSet<Pid>>> = Lazy::new(DashMap::new);

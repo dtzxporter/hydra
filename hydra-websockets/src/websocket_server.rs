@@ -29,9 +29,9 @@ use hydra::ProcessFlags;
 use crate::WebsocketRequest;
 use crate::WebsocketResponse;
 
-use crate::start_websocket_handler;
 use crate::WebsocketHandler;
 use crate::WebsocketServerConfig;
+use crate::start_websocket_handler;
 
 /// A [Process] that listens for websocket connections and spawns [WebsocketHandler]'s to read/write to them.
 pub struct WebsocketServer<T: WebsocketHandler + Send + 'static> {
@@ -220,9 +220,9 @@ where
     let tls = {
         use std::sync::Arc;
 
+        use tokio_native_tls::TlsAcceptor;
         use tokio_native_tls::native_tls::Identity;
         use tokio_native_tls::native_tls::TlsAcceptor as NTlsAcceptor;
-        use tokio_native_tls::TlsAcceptor;
 
         let identity = if let (Some(der), Some(password)) =
             (&config.tls_pkcs12_der, &config.tls_pkcs12_password)

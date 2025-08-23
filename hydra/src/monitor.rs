@@ -7,6 +7,15 @@ use once_cell::sync::Lazy;
 use crate::frame::Monitor;
 use crate::frame::MonitorDown;
 
+use crate::Dest;
+use crate::ExitReason;
+use crate::Node;
+use crate::PROCESS;
+use crate::Pid;
+use crate::ProcessInfo;
+use crate::ProcessItem;
+use crate::ProcessMonitor;
+use crate::Reference;
 use crate::alias_destroy;
 use crate::node_lookup_remote;
 use crate::node_monitor_destroy;
@@ -18,15 +27,6 @@ use crate::node_send_frame;
 use crate::process_exists_lock;
 use crate::process_name_lookup;
 use crate::process_sender;
-use crate::Dest;
-use crate::ExitReason;
-use crate::Node;
-use crate::Pid;
-use crate::ProcessInfo;
-use crate::ProcessItem;
-use crate::ProcessMonitor;
-use crate::Reference;
-use crate::PROCESS;
 
 /// A collection of the local processes being monitored, and the references that require the message.
 #[allow(clippy::type_complexity)]

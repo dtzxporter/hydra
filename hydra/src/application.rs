@@ -185,10 +185,11 @@ pub trait Application: Sized + Send + 'static {
                 }
             });
 
-            if let Ok(Some(reason)) = rx.await {
-                if reason.is_custom() && reason != "shutdown" {
-                    panic!("Exited: {:?}", reason);
-                }
+            if let Ok(Some(reason)) = rx.await
+                && reason.is_custom()
+                && reason != "shutdown"
+            {
+                panic!("Exited: {:?}", reason);
             }
         });
     }

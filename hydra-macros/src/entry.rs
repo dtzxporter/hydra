@@ -3,8 +3,8 @@ use proc_macro::TokenStream;
 use quote::format_ident;
 use quote::quote;
 
-use syn::parse_macro_input;
 use syn::ItemFn;
+use syn::parse_macro_input;
 
 pub(crate) fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as ItemFn);

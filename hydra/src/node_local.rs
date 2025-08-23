@@ -5,8 +5,6 @@ use serde::Serialize;
 
 use tokio::net::TcpListener;
 
-use crate::node_local_panic;
-use crate::node_remote_accepter;
 use crate::Local;
 use crate::Message;
 use crate::NodeOptions;
@@ -15,6 +13,8 @@ use crate::Pid;
 use crate::Process;
 use crate::ProcessFlags;
 use crate::SystemMessage;
+use crate::node_local_panic;
+use crate::node_remote_accepter;
 
 #[derive(Serialize, Deserialize)]
 pub enum NodeLocalSupervisorMessage {
